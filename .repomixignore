@@ -1,0 +1,40 @@
+# Repomix ignore — bedzie-igla
+
+# Zależności i cache
+node_modules
+.svelte-kit
+.pnpm-store
+
+# Build outputy
+dist
+build
+
+# Lock files (zbyt długie, bezużyteczne dla AI)
+*.lock
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Logi
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Pliki binarne w static
+static/*.pdf
+static/*.png
+static/*.jpg
+static/*.jpeg
+static/*.webp
+static/*.gif
+static/*.ico
+static/gallery/
+
+# Środowiskowe
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db

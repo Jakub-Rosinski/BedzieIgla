@@ -1,0 +1,59 @@
+Options -Indexes
+
+# ─── Nagłówki bezpieczeństwa ───────────────────────────────────────────────────
+<IfModule mod_headers.c>
+    # Zapobiega clickjackingowi — strona nie może być osadzona w ramce
+    Header always set X-Frame-Options "SAMEORIGIN"
+    # Wyłącza MIME sniffing — przeglądarka respektuje Content-Type
+    Header always set X-Content-Type-Options "nosniff"
+    # Kontroluje informacje w nagłówku Referer
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # Wymusza HTTPS przez minimum rok (działa po pierwszym wejściu przez HTTPS)
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    # Wyłącza geolokację, mikrofon, kamerę poza samą stroną
+    Header always set Permissions-Policy "geolocation=(self), microphone=(), camera=()"
+    # Content Security Policy
+    Header always set Content-Security-Policy "\
+default-src 'self'; \
+script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; \
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+font-src 'self' https://fonts.gstatic.com; \
+img-src 'self' data: https://*.tile.openstreetmap.org https://*.s3.*.perf.cloud.ovh.net https://picsum.photos https://*.picsum.photos https://www.google-analytics.com; \
+connect-src 'self' https://api.emailjs.com https://router.project-osrm.org https://*.s3.*.perf.cloud.ovh.net https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net; \
+frame-ancestors 'none'; \
+"
+</IfModule>
+
+# ─── Wymuszaj HTTPS ────────────────────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ─── SPA fallback — serwuj index.html dla nieznanych ścieżek ─────────────────
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ /index.html [L]
+</IfModule>
+
+# ─── Cache dla statycznych assetów ────────────────────────────────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg           "access plus 1 month"
+    ExpiresByType image/png            "access plus 1 month"
+    ExpiresByType image/webp           "access plus 1 month"
+    ExpiresByType image/svg+xml        "access plus 1 month"
+    ExpiresByType text/css             "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType font/woff2           "access plus 1 year"
+</IfModule>
+
+# ─── Kompresja ─────────────────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json
+</IfModule>

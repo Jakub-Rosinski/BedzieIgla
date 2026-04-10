@@ -1,0 +1,149 @@
+/* ─── CSS Variables ─────────────────────────────────── */
+:root {
+    --bg: #2e3033;
+    --bg2: #1a1c1f;
+    --bg3: #767f94;
+    --ink: #ffffff;
+    --ink2: #dedede;
+    --red: #d60905;
+    --red-dk: #a40600;
+    --pink: #ffdae3;
+    --pink-dk: #e9999b;
+    --grey: #c9c9c9;
+    --anthracite: #767f94;
+
+    /* Semantic aliases used throughout components */
+    --accent: var(--red);
+    --accent2: var(--pink);
+    --ring: rgba(214, 9, 5, 0.25);
+    --glow: rgba(214, 9, 5, 0.1);
+
+    --font-display: "Playfair Display", serif;
+    --font-body: "Cormorant Garamond", serif;
+}
+
+/* ─── Reset ─────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+    font-size: 18px;
+}
+
+body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: none;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+img {
+    max-width: 100%;
+    display: block;
+}
+
+/* ─── Noise overlay ─────────────────────────────────── */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9000;
+    opacity: 0.35;
+}
+
+/* ─── Utility ───────────────────────────────────────── */
+.section-num {
+    font-size: 0.6rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.section-num::after {
+    content: "";
+    display: block;
+    width: 60px;
+    height: 1px;
+    background: var(--accent);
+    opacity: 0.4;
+}
+
+.section-divider {
+    width: 80px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    margin-bottom: 2rem;
+    opacity: 0.5;
+}
+
+h2 {
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 5vw, 4rem);
+    font-weight: 400;
+    color: var(--ink);
+    margin-bottom: 2rem;
+    line-height: 1.15;
+}
+h2 em {
+    font-style: italic;
+    color: var(--accent);
+}
+
+p {
+    font-size: 1.1rem;
+    line-height: 1.9;
+    color: var(--ink2);
+    font-weight: 400;
+}
+
+/* ─── Animations ────────────────────────────────────── */
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes float {
+    0%,
+    100% {
+        transform: translateX(-50%) translateY(0);
+    }
+    50% {
+        transform: translateX(-50%) translateY(6px);
+    }
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+    50% {
+        transform: scale(1.15);
+        opacity: 1;
+    }
+}

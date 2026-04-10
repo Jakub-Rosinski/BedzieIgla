@@ -1,0 +1,147 @@
+name: Deploy → OVH Perso
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # deploy nigdy nie przerywamy w połowie
+
+jobs:
+  # ─── Sprawdzanie typów ──────────────────────────────────────────────────────
+  check:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+  # ─── Testy jednostkowe ──────────────────────────────────────────────────────
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test --reporter=verbose
+
+  # ─── Testy E2E ──────────────────────────────────────────────────────────────
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    needs: [check, unit]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+        env:
+          CI: true
+          VITE_S3_LIST_URL: ""
+          VITE_S3_PUBLIC_URL: ""
+          VITE_EMAILJS_SERVICE_ID: "service_test"
+          VITE_EMAILJS_TEMPLATE_ID: "template_test"
+          VITE_EMAILJS_PUBLIC_KEY: "key_test"
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ─── Build produkcyjny ──────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [e2e]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+        env:
+          VITE_EMAILJS_SERVICE_ID:  ${{ secrets.VITE_EMAILJS_SERVICE_ID }}
+          VITE_EMAILJS_TEMPLATE_ID: ${{ secrets.VITE_EMAILJS_TEMPLATE_ID }}
+          VITE_EMAILJS_PUBLIC_KEY:  ${{ secrets.VITE_EMAILJS_PUBLIC_KEY }}
+          VITE_S3_LIST_URL:         ${{ secrets.VITE_S3_LIST_URL }}
+          VITE_S3_PUBLIC_URL:       ${{ secrets.VITE_S3_PUBLIC_URL }}
+          VITE_S3_PREFIX:           ${{ secrets.VITE_S3_PREFIX }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build/
+          retention-days: 1
+
+  # ─── Deploy na OVH Perso przez FTP ─────────────────────────────────────────
+  deploy:
+    name: Deploy (FTP → OVH)
+    runs-on: ubuntu-latest
+    needs: [build]
+    environment:
+      name: production
+      url: ${{ vars.SITE_URL }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: build/
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server:          ${{ secrets.FTP_HOST }}
+          username:        ${{ secrets.FTP_USERNAME }}
+          password:        ${{ secrets.FTP_PASSWORD }}
+          server-dir:      ${{ secrets.FTP_SERVER_DIR }}
+          local-dir:       ./build/
+          # Nie uploaduj plików które nie istnieją na serwerze (przyspiesza deploy)
+          dangerous-clean-slate: false
+          # Usuń pliki z serwera których nie ma w build/ (czyści stare chunki JS/CSS)
+          exclude: |
+            **/.git*
+            **/.git*/**

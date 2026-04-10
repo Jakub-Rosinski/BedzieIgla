@@ -1,0 +1,11 @@
+.svelte-kit
+node_modules
+build
+dist
+.env
+.env.*
+!.env.example
+.pnpm-store
+*.log
+.DS_Store
+Thumbs.db
