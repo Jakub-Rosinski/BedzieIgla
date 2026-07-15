@@ -24,6 +24,8 @@
   "url": "https://bedzieigla.pl",
   "telephone": "+48531269735",
   "image": "https://bedzieigla.pl/logo.png",
+  "priceRange": "150–1400 PLN",
+  "currenciesAccepted": "PLN",
   "address": {
     "@type": "PostalAddress",
     "streetAddress": "ul. Zawiszy Czarnego 22",
@@ -37,6 +39,14 @@
     "longitude": 18.6506629
   },
   "hasMap": "https://www.google.com/maps?q=50.2892389,18.6506629",
+  "openingHoursSpecification": [
+    {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "opens": "10:00",
+      "closes": "18:00"
+    }
+  ],
   "employee": {
     "@type": "Person",
     "name": "Gosia Wiśniewska",
@@ -56,6 +66,13 @@
     "telephone": "+48531269735",
     "contactType": "reservations",
     "availableLanguage": "Polish"
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "5.0",
+    "reviewCount": "94",
+    "bestRating": "5",
+    "worstRating": "1"
   }
 }
 <\/script>`}

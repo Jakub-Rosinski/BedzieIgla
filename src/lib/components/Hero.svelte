@@ -3,6 +3,9 @@
 </script>
 
 <section id="hero">
+    <h1 class="visually-hidden">
+        Studio tatuażu Będzie Igła! w Gliwicach — Gosia Wiśniewska Tattoo
+    </h1>
     <div class="glow-orb" aria-hidden="true"></div>
     <CircularMenu />
     <div class="scroll-hint" aria-hidden="true">

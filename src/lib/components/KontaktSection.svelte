@@ -245,6 +245,12 @@
             Masz pomysł na tatuaż? Napisz — razem stworzymy coś wyjątkowego.
         </p>
 
+        <address class="studio-address">
+            <span class="studio-name">Będzie Igła! — Gosia Wiśniewska Tattoo</span>
+            <span>ul. Zawiszy Czarnego 22, Gliwice</span>
+            <a href="tel:+48531269735">tel. 531&nbsp;269&nbsp;735</a>
+        </address>
+
         <ul class="contact-links" role="list">
             {#each links as link}
                 <li>
@@ -491,6 +497,31 @@
     }
     .intro {
         margin-bottom: 2rem;
+    }
+
+    /* Adres studia (widoczny tekst + klikalny telefon) */
+    .studio-address {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        margin-bottom: 2.5rem;
+        font-style: normal;
+        color: var(--ink2);
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+    .studio-address .studio-name {
+        font-family: var(--font-display);
+        color: var(--ink);
+        letter-spacing: 0.02em;
+    }
+    .studio-address a {
+        color: var(--accent);
+        width: fit-content;
+        cursor: none;
+    }
+    .studio-address a:hover {
+        text-decoration: underline;
     }
 
     /* Social links */
