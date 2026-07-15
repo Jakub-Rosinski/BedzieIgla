@@ -31,14 +31,16 @@ frame-ancestors 'none'; \
     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 </IfModule>
 
-# ─── SPA fallback — serwuj index.html dla nieznanych ścieżek ─────────────────
+# ─── SPA fallback — serwuj 200.html dla nieznanych ścieżek ──────────────────
+# Uwaga: index.html jest prerenderowaną stroną główną (pełny HTML dla crawlerów).
+# Shell SPA to 200.html — tylko dla ścieżek, których nie ma jako plik na dysku.
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
 
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^ /index.html [L]
+    RewriteRule ^ /200.html [L]
 </IfModule>
 
 # ─── Cache dla statycznych assetów ────────────────────────────────────────────
