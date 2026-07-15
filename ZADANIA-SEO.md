@@ -46,7 +46,7 @@ Overwriting build/index.html with fallback page. Consider using a different name
 
 ## 3. Dane strukturalne LocalBusiness (schema.org) — ✅ WYKONANE
 
-`src/routes/+page.svelte`, JSON-LD w `<svelte:head>` przez `{@html}`, typ `TattooShop`. Zawiera: `name`, `alternateName`, `description`, `url`, `telephone` (+48531269735), `image`, `address` (ul. Zawiszy Czarnego 22, Gliwice, Śląskie, PL), `geo`, `hasMap`, `employee`, `sameAs` (FB/IG/TikTok), `contactPoint`. Prerenderuje się poprawnie (zweryfikowane: parsuje się, `TattooShop` obecny w `build/index.html`).
+`src/routes/+page.svelte`, JSON-LD w `<svelte:head>` przez `{@html}`, typ `TattooParlor` (poprawny typ schema.org — wcześniej był nieistniejący `TattooShop`, przez co walidator zgłaszał błąd na `aggregateRating`). Zawiera: `name`, `alternateName`, `description`, `url`, `telephone` (+48531269735), `image`, `address` (ul. Zawiszy Czarnego 22, Gliwice, Śląskie, PL), `geo`, `hasMap`, `employee`, `sameAs` (FB/IG/TikTok), `contactPoint`. Prerenderuje się poprawnie (zweryfikowane: parsuje się, `TattooShop` obecny w `build/index.html`).
 
 **Dodane w tej iteracji (dane od właścicielki):**
 - ✅ `priceRange: "150–1400 PLN"` + `currenciesAccepted: "PLN"`

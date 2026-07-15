@@ -16,7 +16,7 @@
     {@html `<script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "TattooShop",
+  "@type": "TattooParlor",
   "@id": "https://bedzieigla.pl/#studio",
   "name": "Będzie Igła!",
   "alternateName": "Będzie Igła! — Gosia Wiśniewska Tattoo",
