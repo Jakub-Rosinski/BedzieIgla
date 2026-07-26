@@ -1,6 +1,7 @@
 <script>
     import "../app.css";
     import Cursor from "$lib/components/Cursor.svelte";
+    import ScrollTopButton from "$lib/components/ScrollTopButton.svelte";
 
     const GA4_ID = import.meta.env.VITE_GA4_ID ?? "";
 </script>
@@ -13,3 +14,4 @@
 
 <Cursor />
 <slot />
+<ScrollTopButton />

@@ -14,7 +14,7 @@ Deployed on OVH shared hosting (Apache) as a fully pre-rendered static site via 
 | Language | TypeScript v5 (strict mode), JSDoc annotations in `.js` files |
 | Build tool | Vite v6 |
 | Package manager | pnpm v9 |
-| Adapter | `@sveltejs/adapter-static` (pre-rendered SPA, `fallback: index.html`) |
+| Adapter | `@sveltejs/adapter-static` (pre-rendered, `fallback: 200.html`) |
 | Contact form | EmailJS API (client-side POST, no backend required) |
 | Object storage | OVH S3-compatible bucket — public read, fetched directly from browser |
 | Maps | Leaflet v1.9 + leaflet-routing-machine (OSRM, no API key) |
@@ -30,7 +30,7 @@ src/
   app.css               # Global styles + CSS custom properties (design tokens)
   ambient.d.ts          # Module declaration for leaflet-routing-machine
   lib/
-    components/         # Seven self-contained section components
+    components/         # Eight self-contained components (sections + UI)
     form-utils.js       # Validation (6 fields) + client-side rate limiting
     s3-utils.js         # XML parser for S3 ListObjectsV2 responses
     index.js            # Barrel re-exports
@@ -42,6 +42,7 @@ src/
 static/
   logo.png              # Site logo / OG image
   favicon.png
+  gosia-photo.jpg       # Portrait for the "O mnie" section (800x902, optimised)
   robots.txt            # Allows all crawlers, points to sitemap
   sitemap.xml           # Single-URL sitemap — update lastmod on content changes
   .htaccess             # Security headers (CSP, HSTS, etc.), HTTPS redirect, caching, gzip
@@ -56,10 +57,11 @@ static/
 | `Cursor.svelte` | Custom cursor (dot + ring) with RAF easing |
 | `CircularMenu.svelte` | Rotating wheel navigation — SVG, particles, orbit rings. Label font size: 18px |
 | `Hero.svelte` | Full-screen hero with pulsing glow orb |
-| `OmniSection.svelte` | "O mnie" — portrait placeholder + Gosia's bio (4 paragraphs), portrait aligned to top |
+| `OmniSection.svelte` | "O mnie" — Gosia's portrait photo + bio (4 paragraphs), portrait aligned to top, shown on mobile too |
 | `GaleriaSection.svelte` | Two-row infinite carousel (JS RAF loop), per-row drag + inertia, lightbox with focus trap |
 | `KontaktSection.svelte` | 7-field contact form + social links + embedded MapaSection |
 | `MapaSection.svelte` | Leaflet map + browser geolocation + OSRM routing |
+| `ScrollTopButton.svelte` | Floating "back to top" button — appears past 100vh, orbital dashed ring, smaller/dimmed on desktop |
 
 ## Build & Test Commands
 
@@ -96,10 +98,10 @@ VITE_S3_PREFIX         # Folder prefix, e.g. gallery/ (default: gallery/)
 - **SEO**: `app.html` has complete meta tags (description, keywords, OG, Twitter Card). `+page.svelte` has canonical link and JSON-LD `TattooParlor` structured data (address, GPS, phone, socials, Gosia's education). `static/sitemap.xml` and `static/robots.txt` present.
 - **Analytics**: GA4 injected in `+layout.svelte` via `{@html}` in `<svelte:head>`. Only loads when `VITE_GA4_ID` is set — safe to leave empty in dev.
 - **Security headers**: Set via `static/.htaccess` — CSP (covers EmailJS, GA4, OSM, OSRM, OVH S3, Google Fonts), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS, Permissions-Policy, HTTPS redirect, static asset caching, gzip.
+- **Scroll-to-top button**: `ScrollTopButton.svelte`, rendered globally in `+layout.svelte`. Visibility toggled by a rAF-throttled passive `scroll` listener (`scrollY > innerHeight`), so it appears once the Hero leaves the viewport. `z-index: 8000` — above content, below the noise overlay (9000), custom cursor (9998/9999) and gallery lightbox (9999). Honours `prefers-reduced-motion` (no ring spin, instant scroll).
 - **body `cursor: none`**: Default cursor globally hidden (`app.css`); `Cursor.svelte` provides a custom animated replacement. Cards and interactive elements use `cursor: none` to keep the custom cursor.
 
 ## Pending Before Launch
 
-- Replace `GW` portrait placeholder in `OmniSection.svelte` with real photo (`/gosia-photo.jpg`)
 - Set all `VITE_*` env vars on the production server
 - Update `<lastmod>` in `static/sitemap.xml` after each content deployment
