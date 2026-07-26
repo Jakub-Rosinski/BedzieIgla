@@ -30,7 +30,7 @@ src/
   app.css               # Global styles + CSS custom properties (design tokens)
   ambient.d.ts          # Module declaration for leaflet-routing-machine
   lib/
-    components/         # Seven self-contained section components
+    components/         # Eight self-contained components (sections + UI)
     form-utils.js       # Validation (6 fields) + client-side rate limiting
     s3-utils.js         # XML parser for S3 ListObjectsV2 responses
     index.js            # Barrel re-exports
@@ -60,6 +60,7 @@ static/
 | `GaleriaSection.svelte` | Two-row infinite carousel (JS RAF loop), per-row drag + inertia, lightbox with focus trap |
 | `KontaktSection.svelte` | 7-field contact form + social links + embedded MapaSection |
 | `MapaSection.svelte` | Leaflet map + browser geolocation + OSRM routing |
+| `ScrollTopButton.svelte` | Floating "back to top" button — appears past 100vh, orbital dashed ring, smaller/dimmed on desktop |
 
 ## Build & Test Commands
 
@@ -96,6 +97,7 @@ VITE_S3_PREFIX         # Folder prefix, e.g. gallery/ (default: gallery/)
 - **SEO**: `app.html` has complete meta tags (description, keywords, OG, Twitter Card). `+page.svelte` has canonical link and JSON-LD `TattooParlor` structured data (address, GPS, phone, socials, Gosia's education). `static/sitemap.xml` and `static/robots.txt` present.
 - **Analytics**: GA4 injected in `+layout.svelte` via `{@html}` in `<svelte:head>`. Only loads when `VITE_GA4_ID` is set — safe to leave empty in dev.
 - **Security headers**: Set via `static/.htaccess` — CSP (covers EmailJS, GA4, OSM, OSRM, OVH S3, Google Fonts), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS, Permissions-Policy, HTTPS redirect, static asset caching, gzip.
+- **Scroll-to-top button**: `ScrollTopButton.svelte`, rendered globally in `+layout.svelte`. Visibility toggled by a rAF-throttled passive `scroll` listener (`scrollY > innerHeight`), so it appears once the Hero leaves the viewport. `z-index: 8000` — above content, below the noise overlay (9000), custom cursor (9998/9999) and gallery lightbox (9999). Honours `prefers-reduced-motion` (no ring spin, instant scroll).
 - **body `cursor: none`**: Default cursor globally hidden (`app.css`); `Cursor.svelte` provides a custom animated replacement. Cards and interactive elements use `cursor: none` to keep the custom cursor.
 
 ## Pending Before Launch
