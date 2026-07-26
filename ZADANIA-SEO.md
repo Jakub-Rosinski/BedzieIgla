@@ -98,7 +98,7 @@ Posortowane wg wpływu/łatwości:
 1. 🔴 **`static/favicon.png` = 512 kB** (identyczny plik co `logo.png`). Favicon powinien mieć kilka kB — przeskaluj do 32–64 px / użyj `.ico`/małego PNG. Duży wpływ, trywialne.
 2. ⚠️ **`static/logo.png` = 512 kB** — używany jako OG image i `image` w JSON-LD. Skompresować / rozważyć WebP (dla OG zostaw też PNG/JPG dla kompatybilności).
 3. 🔴 **Brak `<h1>` + hierarchia od `<h2>`** (patrz zadanie 4) — istotne dla SEO i a11y.
-4. ⚠️ **Portret Gosi to placeholder `GW`** (`OmniSection.svelte`, komentarz `<!-- Replace with <img src="/gosia-photo.jpg" ... -->`), `aria-hidden`. Podmienić na realne zdjęcie z `alt`.
+4. ✅ **Portret Gosi — WYKONANE.** Placeholder `GW` zastąpiony realnym zdjęciem (`static/gosia-photo.jpg`, 800×902, 285 kB → 89 kB, EXIF wyczyszczony), z opisowym `alt`, `width`/`height`, `loading="lazy"`. Zdjęto `aria-hidden`, portret pokazywany także na mobile (wcześniej `display: none` poniżej 680 px).
 5. ✅ **Obrazy galerii** — mają `alt={photo.alt}`, `width`/`height`, `loading="lazy"`, `decoding="async"`. Dobrze. (Ładowane klienta z S3/picsum — poza prerenderem, to OK.)
 6. ⚠️ **Kontrast WCAG AA** — do sprawdzenia: czerwień `#d60905` i przygaszony tekst `--ink2` na ciemnym tle. Zweryfikować teksty pomocnicze/etykiety (mogą nie spełniać 4.5:1).
 7. ℹ️ Brak nowoczesnych formatów (WebP/AVIF) dla logo/favicon — patrz pkt 1–2.

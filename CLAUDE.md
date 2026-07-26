@@ -14,7 +14,7 @@ Deployed on OVH shared hosting (Apache) as a fully pre-rendered static site via 
 | Language | TypeScript v5 (strict mode), JSDoc annotations in `.js` files |
 | Build tool | Vite v6 |
 | Package manager | pnpm v9 |
-| Adapter | `@sveltejs/adapter-static` (pre-rendered SPA, `fallback: index.html`) |
+| Adapter | `@sveltejs/adapter-static` (pre-rendered, `fallback: 200.html`) |
 | Contact form | EmailJS API (client-side POST, no backend required) |
 | Object storage | OVH S3-compatible bucket — public read, fetched directly from browser |
 | Maps | Leaflet v1.9 + leaflet-routing-machine (OSRM, no API key) |
@@ -42,6 +42,7 @@ src/
 static/
   logo.png              # Site logo / OG image
   favicon.png
+  gosia-photo.jpg       # Portrait for the "O mnie" section (800x902, optimised)
   robots.txt            # Allows all crawlers, points to sitemap
   sitemap.xml           # Single-URL sitemap — update lastmod on content changes
   .htaccess             # Security headers (CSP, HSTS, etc.), HTTPS redirect, caching, gzip
@@ -56,7 +57,7 @@ static/
 | `Cursor.svelte` | Custom cursor (dot + ring) with RAF easing |
 | `CircularMenu.svelte` | Rotating wheel navigation — SVG, particles, orbit rings. Label font size: 18px |
 | `Hero.svelte` | Full-screen hero with pulsing glow orb |
-| `OmniSection.svelte` | "O mnie" — portrait placeholder + Gosia's bio (4 paragraphs), portrait aligned to top |
+| `OmniSection.svelte` | "O mnie" — Gosia's portrait photo + bio (4 paragraphs), portrait aligned to top, shown on mobile too |
 | `GaleriaSection.svelte` | Two-row infinite carousel (JS RAF loop), per-row drag + inertia, lightbox with focus trap |
 | `KontaktSection.svelte` | 7-field contact form + social links + embedded MapaSection |
 | `MapaSection.svelte` | Leaflet map + browser geolocation + OSRM routing |
@@ -100,6 +101,5 @@ VITE_S3_PREFIX         # Folder prefix, e.g. gallery/ (default: gallery/)
 
 ## Pending Before Launch
 
-- Replace `GW` portrait placeholder in `OmniSection.svelte` with real photo (`/gosia-photo.jpg`)
 - Set all `VITE_*` env vars on the production server
 - Update `<lastmod>` in `static/sitemap.xml` after each content deployment

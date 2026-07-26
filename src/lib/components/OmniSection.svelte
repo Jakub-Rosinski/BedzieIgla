@@ -3,9 +3,15 @@
     <div class="section-inner">
         <!-- ── Gosia ──────────────────────────────────────────── -->
         <div class="artist-block">
-            <div class="portrait" aria-hidden="true">
-                <!-- Replace with <img src="/gosia-photo.jpg" alt="Gosia Wiśniewska" /> -->
-                <span class="portrait-placeholder">GW</span>
+            <div class="portrait">
+                <img
+                    src="/gosia-photo.jpg"
+                    alt="Gosia Wiśniewska — tatuatorka w studiu tatuażu Będzie Igła! w Gliwicach"
+                    width="800"
+                    height="902"
+                    loading="lazy"
+                    decoding="async"
+                />
                 <div class="stucco-corners">
                     <span></span><span></span><span></span><span></span>
                 </div>
@@ -133,13 +139,11 @@
             rgba(214, 9, 5, 0.05)
         );
     }
-    .portrait-placeholder {
-        font-family: var(--font-display);
-        font-style: italic;
-        font-size: 4rem;
-        color: rgba(214, 9, 5, 0.2);
-        position: relative;
-        z-index: 1;
+    .portrait img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center 30%;
     }
 
     /* Stucco corner ornaments */
@@ -192,8 +196,11 @@
             grid-template-columns: 1fr;
             direction: ltr;
         }
+        /* Portret zostaje na mobile — ograniczony szerokością i wyśrodkowany */
         .portrait {
-            display: none;
+            max-width: 260px;
+            width: 100%;
+            margin: 0 auto 2.5rem;
         }
     }
 </style>
