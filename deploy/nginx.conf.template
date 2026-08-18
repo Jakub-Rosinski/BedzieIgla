@@ -1,0 +1,96 @@
+# Nginx reverse-proxy config for bedzieigla.pl on the OVH VPS.
+#
+# BOOTSTRAP ORDER MATTERS — this file contains a TLS server block, which nginx
+# refuses to load until certificates exist. On a fresh VPS do this:
+#   1. Copy ONLY the port-80 block below into /etc/nginx/sites-available/bedzieigla.pl
+#      (comment out or omit the 443 block), symlink it into sites-enabled,
+#      replacing its `return 301 ...` with `root /home/deploy/bedzieigla/build/client;`
+#      so certbot's HTTP-01 challenge can be served.
+#   2. nginx -t && systemctl reload nginx
+#   3. certbot --nginx -d bedzieigla.pl -d www.bedzieigla.pl
+#   4. Now install this file in full (certbot keeps/reuses its ssl_certificate lines)
+#      and reload again.
+# Installing this file verbatim BEFORE certbot has issued a cert will fail
+# `nginx -t` with "cannot load certificate ... No such file or directory".
+#
+# Replaces static/.htaccess's role (security headers, HTTPS redirect, gzip,
+# static asset caching) now that Apache/adapter-static are gone.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name bedzieigla.pl www.bedzieigla.pl;
+
+    # Certbot writes HTTP-01 challenge files here; must NOT be redirected.
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name bedzieigla.pl www.bedzieigla.pl;
+
+    # certbot injects ssl_certificate / ssl_certificate_key here on first run.
+
+    server_tokens off;
+
+    # ─── gzip (replacing mod_deflate) ──────────────────────────────────────────
+    gzip on;
+    gzip_types text/html text/css application/javascript application/json application/xml image/svg+xml;
+    gzip_min_length 256;
+
+    root /home/deploy/bedzieigla/build/client;
+
+    # Security headers live in a snippet because nginx's `add_header` is NOT
+    # inherited into any location that declares its own `add_header` — without
+    # re-including them, /_app/* assets would silently lose every header below.
+    # Write these lines to /etc/nginx/snippets/bedzieigla-security.conf:
+    #
+    #   add_header X-Frame-Options "SAMEORIGIN" always;
+    #   add_header X-Content-Type-Options "nosniff" always;
+    #   add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    #   add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    #   add_header Permissions-Policy "geolocation=(self), microphone=(), camera=()" always;
+    #   add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.tile.openstreetmap.org https://*.s3.*.perf.cloud.ovh.net https://picsum.photos https://*.picsum.photos https://www.google-analytics.com; connect-src 'self' https://router.project-osrm.org https://*.s3.*.perf.cloud.ovh.net https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net; frame-ancestors 'none';" always;
+    #
+    # NOTE: connect-src intentionally has no api.emailjs.com — the form now posts
+    # same-origin to /api/contact.
+    include snippets/bedzieigla-security.conf;
+
+    # Hashed, immutable adapter-node client assets — long cache, served by Nginx.
+    location /_app/ {
+        include snippets/bedzieigla-security.conf;   # add_header does not inherit here
+        expires 1y;
+        add_header Cache-Control "public, immutable" always;
+        access_log off;
+    }
+
+    # Other static files shipped in build/client (images, robots, sitemap).
+    location = /favicon.png    { include snippets/bedzieigla-security.conf; expires 1M; }
+    location = /logo.png       { include snippets/bedzieigla-security.conf; expires 1M; }
+    location = /gosia-photo.jpg{ include snippets/bedzieigla-security.conf; expires 1M; }
+    location = /robots.txt     { include snippets/bedzieigla-security.conf; }
+    location = /sitemap.xml    { include snippets/bedzieigla-security.conf; }
+
+    # Everything else (including prerendered HTML) → proxy to the Node process.
+    location / {
+        include snippets/bedzieigla-security.conf;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        # Must be >= BODY_SIZE_LIMIT in ecosystem.config.js, or uploads get rejected
+        # here before Node ever sees them.
+        client_max_body_size 25M;
+    }
+}

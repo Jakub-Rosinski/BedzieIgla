@@ -74,9 +74,6 @@ jobs:
           # Tryb testowy — S3 pusty = galeria używa zdjęć picsum
           VITE_S3_LIST_URL: ""
           VITE_S3_PUBLIC_URL: ""
-          VITE_EMAILJS_SERVICE_ID: "service_test"
-          VITE_EMAILJS_TEMPLATE_ID: "template_test"
-          VITE_EMAILJS_PUBLIC_KEY: "key_test"
 
       - name: Upload test report on failure
         if: failure()
