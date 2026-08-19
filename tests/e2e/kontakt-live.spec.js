@@ -1,8 +1,14 @@
 /**
- * Live send tests — require real SMTP_* / CONTACT_TO_EMAIL credentials in .env,
- * hitting the real /api/contact server route (no mocking).
+ * Live send tests — hit the real /api/contact server route (no mocking),
+ * with real SMTP_* / CONTACT_TO_EMAIL credentials in .env.
  * They are automatically skipped in CI (no SMTP credentials available there).
  * Run locally with: pnpm exec playwright test tests/e2e/kontakt-live.spec.js
+ *
+ * SCOPE NOTE: since the queue landed, /api/contact confirms ACCEPTANCE, not
+ * delivery — the worker mails asynchronously. A green run here proves the
+ * submission was validated and persisted, NOT that anything reached the inbox.
+ * To verify actual delivery, check the target mailbox, or watch QUEUE_DIR
+ * drain (a submission stuck in queue/pending means SMTP is rejecting it).
  */
 import { test, expect } from "@playwright/test";
 import path from "path";
