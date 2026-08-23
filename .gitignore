@@ -12,3 +12,7 @@ Thumbs.db
 
 # Kolejka zgłoszeń kontaktowych (dane runtime, nigdy do repo)
 queue/
+
+# Raport Playwright — artefakt lokalnych uruchomień, zmienia się przy każdym `pnpm test:e2e`
+playwright-report/
+test-results/
