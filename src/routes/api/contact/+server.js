@@ -4,7 +4,7 @@ import { json } from "@sveltejs/kit";
 import { validate, isBotSubmission } from "$lib/form-utils.js";
 import { checkRateLimit, recordAttempt, recordSend } from "$lib/server/rate-limit.js";
 import { sniffImageType, safeAttachmentName } from "$lib/server/image-utils.js";
-import { sendContactEmail } from "$lib/server/mailer.js";
+import { enqueue } from "$lib/server/queue.js";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB / plik
 const MAX_FILES = 6;
@@ -98,11 +98,19 @@ export async function POST({ request, getClientAddress }) {
     });
   }
 
+  // Zgłoszenie trafia na dysk, a wysyłką zajmuje się worker kolejki.
+  // Odpowiedź dla klienta potwierdza PRZYJĘCIE zgłoszenia, nie doręczenie
+  // maila — dzięki temu niedostępny SMTP nie kasuje treści ani zdjęć.
   try {
-    await sendContactEmail({ name, email, phone, miejsce, wielkosc, message, attachments });
+    await enqueue({ name, email, phone, miejsce, wielkosc, message, attachments });
   } catch (err) {
-    console.error("Wysyłka formularza kontaktowego nie powiodła się:", err);
-    return json({ error: "Nie udało się wysłać wiadomości. Spróbuj ponownie później." }, { status: 502 });
+    // Tu dociera już tylko awaria zapisu na dysk (brak miejsca, brak uprawnień).
+    // Nie możemy zagwarantować trwałości, więc nie wolno udawać sukcesu.
+    console.error("Nie udało się zapisać zgłoszenia w kolejce:", err);
+    return json(
+      { error: "Nie udało się przyjąć zgłoszenia. Spróbuj ponownie później." },
+      { status: 500 }
+    );
   }
 
   recordSend(ip);

@@ -37,6 +37,8 @@ src/
       mailer.js         # nodemailer/SMTP send, real MIME attachments
       rate-limit.js     # In-memory per-IP sliding window: attempts + sends
       image-utils.js    # Magic-byte image sniffing + attachment name sanitising
+      queue.js          # Durable on-disk submission queue + retry worker
+    hooks.server.js     # Starts the queue worker at server boot (guarded by `building`)
     index.js            # Barrel re-exports
   routes/
     +layout.js          # export const prerender = true
@@ -83,7 +85,7 @@ pnpm start        # Run the built server: node -r dotenv/config build/index.js
 pnpm preview      # Preview production build locally
 pnpm check        # svelte-kit sync + svelte-check (type checking)
 pnpm check:watch  # Type checking in watch mode
-pnpm test         # Unit tests (Vitest) — 103 tests across 6 files
+pnpm test         # Unit tests (Vitest) — 125 tests across 8 files
 pnpm test:e2e     # End-to-end tests (Playwright)
 ```
 
@@ -98,18 +100,22 @@ VITE_S3_PREFIX         # Folder prefix, e.g. gallery/ (default: gallery/)
 
 # Runtime, server-only — NEVER VITE_-prefixed, NEVER set in CI. Set only on the VPS
 # (deploy/.env.example), read via process.env at request time.
-SMTP_HOST               # e.g. smtp.gmail.com
+SMTP_HOST               # ssl0.ovh.net — MUST be OVH, see SPF note below
 SMTP_PORT               # e.g. 465
-SMTP_USER               # SMTP auth user (Gmail App Password holder)
-SMTP_PASS               # SMTP auth password (Gmail App Password)
-CONTACT_TO_EMAIL        # Inbox that receives contact-form submissions
+SMTP_USER               # kontakt@bedzieigla.pl — a real OVH MX Plan mailbox (verified: 5 GB,
+                        # not an alias). Doubles as the From address, see SPF note below.
+SMTP_PASS               # Password of that mailbox, set/reset in the OVH MX Plan panel
+CONTACT_TO_EMAIL        # Inbox that receives contact-form submissions (Gosia's Gmail)
+QUEUE_DIR               # Submission queue dir (default: queue) — MUST be outside build/
 ```
 
 ## Key Implementation Notes
 
 - **Hybrid rendering**: `prerender = true` is set in `+layout.js` and still applies to the home page — adapter-node serves it from `build/prerendered/` like static HTML. The one exception is `src/routes/api/contact/+server.js`, which explicitly sets `prerender = false` and runs dynamically in the persistent Node process.
 - **SSR safety**: Leaflet and leaflet-routing-machine are imported dynamically inside `onMount` (`MapaSection.svelte`).
-- **Contact form**: Client (`KontaktSection.svelte`) posts a `multipart/form-data` `FormData` (real `File` objects) to same-origin `/api/contact`. Fields: name, email, phone, miejsce na ciele, wielkość, opis pomysłu, inspiracje (image attachments ≤5 MB/file, ≤18 MB combined, ≤6 files). Client-side resize is now light (2200px longest side, JPEG quality 0.85, skipped entirely for already-small files) — no artificial size cap to fight anymore. The server endpoint (`src/lib/server/mailer.js`) sends the email via nodemailer/SMTP with the photos as real MIME attachments — full quality, not embedded base64 HTML. Validation (`validate()` in `form-utils.js`) is imported and reused as-is server-side.
+- **Contact form**: Client (`KontaktSection.svelte`) posts a `multipart/form-data` `FormData` (real `File` objects) to same-origin `/api/contact`. Fields: name, email, phone, miejsce na ciele, wielkość, opis pomysłu, inspiracje (image attachments ≤5 MB/file, ≤18 MB combined, ≤6 files). Client-side resize is light (2200px longest side, JPEG quality 0.85, skipped entirely for already-small files). The endpoint validates, rate-limits and sniffs the images, then **enqueues** the submission (`src/lib/server/queue.js`) and returns `200` — the response confirms *acceptance, not delivery*. A background worker does the actual nodemailer/SMTP send with real MIME attachments. Validation (`validate()` in `form-utils.js`) is imported and reused as-is server-side.
+- **Contact form — durability**: The endpoint used to `await sendContactEmail()` and return `502` on failure, which **destroyed the submission** — text, contact details and photos, silently. Now every submission is written to `QUEUE_DIR/pending/<id>/` (`job.json` + raw attachment files) *before* any send is attempted. Two filesystem guarantees carry the durability: the job is built in a `.staging-*` dir and moved in with a single `rename()` (so `pending/` never holds a half-written job), and `job.json` is rewritten via `.tmp` + `rename()` (so the attempt counter can't be corrupted). Retries back off 1min → 5min → 15min → 1h → 6h; after 6 attempts the job moves to `QUEUE_DIR/dead/` and logs a line starting `[kolejka] ALERT:` — that string is the hook for monitoring (issue #25). Delivery is **at-least-once**: a crash between SMTP accepting and the dir being removed re-sends. Deliberate — a duplicate in Gosia's inbox costs far less than a lost enquiry. The worker starts from `src/hooks.server.js`, guarded by `building` so `pnpm build` doesn't spawn it during prerender.
+- **SMTP must be OVH, not Gmail**: the domain's SPF is `v=spf1 include:mx.ovh.com -all`. The trailing `-all` is a *hard* fail, so mail sent from Google's servers with `From: @bedzieigla.pl` is rejected outright. `mailer.js` derives `From` from `SMTP_USER` deliberately — keeping them aligned is what makes SPF/DKIM pass. `SMTP_USER` must be a real mailbox (a forwarding alias has no password and cannot authenticate).
 - **Contact form — server-side defences** (client checks are UX fast-fail only; the server is authoritative):
   - *Two-tier rate limiting* (`rate-limit.js`): `recordAttempt` counts **every** request before the body is parsed (30 / 15 min / IP) so floods of large invalid multiparts are throttled; `checkRateLimit`/`recordSend` separately cap **actual sends** (5 / 15 min / IP). The attempt counter must stay generous so a user fumbling the form isn't locked out. Counting only successes (the original design) left invalid requests completely unthrottled.
   - *Attachment content is sniffed, not trusted* (`image-utils.js`): the declared `Content-Type` is ignored; the format is detected from magic bytes (JPEG/PNG/GIF/WebP) and anything else is rejected. The attachment filename is rebuilt server-side (path components stripped, whitelist of characters, extension forced to the detected format) because the client-supplied name lands directly in Gosia's inbox.
@@ -130,7 +136,8 @@ CONTACT_TO_EMAIL        # Inbox that receives contact-form submissions
 
 - Order the OVH VPS-1 and run `deploy/setup-vps.sh` on it (Nginx, PM2, Node, ufw, certbot)
 - Point `bedzieigla.pl` DNS at the new VPS IP, then run `certbot --nginx` for the TLS cert
-- Generate a Gmail App Password and set real `SMTP_*`/`CONTACT_TO_EMAIL` values in the VPS-local `.env` (`deploy/.env.example`) — never in git, never in CI
+- Set/reset the password of the `kontakt@bedzieigla.pl` OVH mailbox and put the real `SMTP_*`/`CONTACT_TO_EMAIL` values in the VPS-local `.env` (`deploy/.env.example`) — never in git, never in CI. **Not** a Gmail App Password: authenticating on Google's SMTP with `From: @bedzieigla.pl` fails the domain's `-all` SPF outright
+- Enable DKIM signing for `bedzieigla.pl` in the OVH MX Plan panel — the panel flags it red under Diagnostic and no selector is published in DNS (checked). Do this **before** adding the DMARC record, otherwise DMARC reports can't distinguish a forwarding hop from a real failure
 - Add `VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY` GitHub Actions secrets for the SSH deploy job; old `FTP_*` secrets are now unused. **`VPS_USER` must be exactly `deploy`** — `ecosystem.config.js` (`cwd`) and `nginx.conf.template` (`root`) hardcode `/home/deploy/bedzieigla`
 - Set all `VITE_*` env vars on the production server (build-time, via GitHub Actions secrets as before)
 - Smoke-test the live form end-to-end: confirm a full-quality photo attachment actually lands at `CONTACT_TO_EMAIL`

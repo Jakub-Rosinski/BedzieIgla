@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const sendMailMock = vi.fn();
-vi.mock("nodemailer", () => ({
-  default: {
-    createTransport: vi.fn(() => ({ sendMail: sendMailMock })),
-  },
+// Endpoint nie wysyła już maila sam — jego kontraktem jest PRZYJĘCIE zgłoszenia
+// do trwałej kolejki. Samą wysyłkę i ponawianie pokrywa queue.test.js.
+const enqueueMock = vi.fn();
+vi.mock("$lib/server/queue.js", () => ({
+  enqueue: (/** @type {any} */ args) => enqueueMock(args),
 }));
 
 import { POST } from "./+server.js";
@@ -51,48 +51,46 @@ function jpegFile(name = "inspiracja.jpg") {
 }
 
 beforeEach(() => {
-  sendMailMock.mockReset();
-  sendMailMock.mockResolvedValue({});
+  enqueueMock.mockReset();
+  enqueueMock.mockResolvedValue("id-testowe");
   rateLimitTesting.sends.clear();
   rateLimitTesting.attempts.clear();
-  vi.stubEnv("SMTP_HOST", "smtp.gmail.com");
-  vi.stubEnv("SMTP_PORT", "465");
-  vi.stubEnv("SMTP_USER", "test@gmail.com");
-  vi.stubEnv("SMTP_PASS", "secret");
-  vi.stubEnv("CONTACT_TO_EMAIL", "studio@bedzieigla.pl");
-});
-
-afterEach(() => {
-  vi.unstubAllEnvs();
 });
 
 describe("POST /api/contact — poprawne zgłoszenie", () => {
-  it("wysyła e-mail i zwraca { ok: true }", async () => {
+  it("przyjmuje zgłoszenie do kolejki i zwraca { ok: true }", async () => {
     const event = makeEvent({ ...VALID_FIELDS, firstInteractionAt: farEnoughFirstInteraction() });
     const res = await POST(/** @type {any} */ (event));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body).toEqual({ ok: true });
-    expect(sendMailMock).toHaveBeenCalledTimes(1);
-    const call = sendMailMock.mock.calls[0][0];
-    expect(call.to).toBe("studio@bedzieigla.pl");
-    expect(call.replyTo).toBe(VALID_FIELDS.email);
-    expect(call.subject).toContain(VALID_FIELDS.name);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock.mock.calls[0][0]).toMatchObject(VALID_FIELDS);
   });
 
-  it("dołącza pliki jako prawdziwe załączniki MIME", async () => {
+  it("przekazuje pliki do kolejki jako bufory z rozpoznanym typem", async () => {
     const event = makeEvent(
       { ...VALID_FIELDS, firstInteractionAt: farEnoughFirstInteraction() },
       [jpegFile()]
     );
     await POST(/** @type {any} */ (event));
 
-    const call = sendMailMock.mock.calls[0][0];
-    expect(call.attachments).toHaveLength(1);
-    expect(call.attachments[0].filename).toBe("inspiracja.jpg");
-    expect(call.attachments[0].contentType).toBe("image/jpeg");
-    expect(Buffer.isBuffer(call.attachments[0].content)).toBe(true);
+    const { attachments } = enqueueMock.mock.calls[0][0];
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0].filename).toBe("inspiracja.jpg");
+    expect(attachments[0].contentType).toBe("image/jpeg");
+    expect(Buffer.isBuffer(attachments[0].content)).toBe(true);
+  });
+
+  // Regresja: wcześniej odpowiedź czekała na SMTP i zwracała 502 przy jego
+  // awarii, kasując treść i zdjęcia. Teraz potwierdzamy PRZYJĘCIE zgłoszenia.
+  it("nie czeka na wysyłkę maila — potwierdza przyjęcie, nie doręczenie", async () => {
+    const event = makeEvent({ ...VALID_FIELDS, firstInteractionAt: farEnoughFirstInteraction() });
+    const res = await POST(/** @type {any} */ (event));
+
+    expect(res.status).toBe(200);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -108,12 +106,12 @@ describe("POST /api/contact — walidacja (reuse form-utils.validate)", () => {
 
     expect(res.status).toBe(400);
     expect(body.error).toMatch(/e-mail/i);
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 });
 
 describe("POST /api/contact — antyspam", () => {
-  it("honeypot ustawiony → ciche 200 bez wysyłki", async () => {
+  it("honeypot ustawiony → ciche 200 bez kolejkowania", async () => {
     const event = makeEvent({
       ...VALID_FIELDS,
       botcheck: "1",
@@ -124,17 +122,17 @@ describe("POST /api/contact — antyspam", () => {
 
     expect(res.status).toBe(200);
     expect(body).toEqual({ ok: true });
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
-  it("zbyt szybkie wypełnienie → ciche 200 bez wysyłki", async () => {
+  it("zbyt szybkie wypełnienie → ciche 200 bez kolejkowania", async () => {
     const event = makeEvent({ ...VALID_FIELDS, firstInteractionAt: String(Date.now()) });
     const res = await POST(/** @type {any} */ (event));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body).toEqual({ ok: true });
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
   it("całkowity brak pola firstInteractionAt → ciche 200 (bot strzelający w API)", async () => {
@@ -145,7 +143,7 @@ describe("POST /api/contact — antyspam", () => {
 
     expect(res.status).toBe(200);
     expect(body).toEqual({ ok: true });
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
   it("firstInteractionAt=0 jest dopuszczone (np. autofill bez zdarzenia input)", async () => {
@@ -153,7 +151,7 @@ describe("POST /api/contact — antyspam", () => {
     const res = await POST(/** @type {any} */ (event));
 
     expect(res.status).toBe(200);
-    expect(sendMailMock).toHaveBeenCalledTimes(1);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -169,7 +167,7 @@ describe("POST /api/contact — załączniki", () => {
 
     expect(res.status).toBe(400);
     expect(body.error).toMatch(/5 MB/);
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
   it("odrzuca plik o niedozwolonym typie MIME", async () => {
@@ -183,7 +181,7 @@ describe("POST /api/contact — załączniki", () => {
 
     expect(res.status).toBe(400);
     expect(body.error).toMatch(/nie jest obsługiwanym obrazem/i);
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
   it("odrzuca plik NIE-obraz mimo skłamanego Content-Type: image/jpeg", async () => {
@@ -199,7 +197,7 @@ describe("POST /api/contact — załączniki", () => {
 
     expect(res.status).toBe(400);
     expect(body.error).toMatch(/nie jest obsługiwanym obrazem/i);
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
   it("sanityzuje nazwę załącznika kontrolowaną przez wysyłającego", async () => {
@@ -209,8 +207,7 @@ describe("POST /api/contact — załączniki", () => {
     );
     await POST(/** @type {any} */ (event));
 
-    const call = sendMailMock.mock.calls[0][0];
-    expect(call.attachments[0].filename).toBe("payload.jpg");
+    expect(enqueueMock.mock.calls[0][0].attachments[0].filename).toBe("payload.jpg");
   });
 });
 
@@ -234,7 +231,7 @@ describe("POST /api/contact — rate limiting", () => {
     );
     const res = await POST(/** @type {any} */ (blocked));
     expect(res.status).toBe(429);
-    expect(sendMailMock).toHaveBeenCalledTimes(rateLimitTesting.MAX_SENDS_PER_IP);
+    expect(enqueueMock).toHaveBeenCalledTimes(rateLimitTesting.MAX_SENDS_PER_IP);
   });
 
   // Regresja: wcześniej licznik rósł WYŁĄCZNIE po udanej wysyłce, więc żądania
@@ -256,18 +253,22 @@ describe("POST /api/contact — rate limiting", () => {
 
     const res = await POST(/** @type {any} */ (invalid()));
     expect(res.status).toBe(429);
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 });
 
-describe("POST /api/contact — błąd wysyłki", () => {
-  it("zwraca 502 gdy nodemailer rzuca błąd", async () => {
-    sendMailMock.mockRejectedValueOnce(new Error("SMTP down"));
+describe("POST /api/contact — awaria zapisu kolejki", () => {
+  it("zwraca 500, gdy zgłoszenia nie da się utrwalić", async () => {
+    // Jedyny pozostały tryb awarii: dysk pełny lub brak uprawnień. Nie wolno
+    // wtedy udawać sukcesu, bo zgłoszenie faktycznie przepadłoby.
+    enqueueMock.mockRejectedValueOnce(new Error("ENOSPC"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
     const event = makeEvent({ ...VALID_FIELDS, firstInteractionAt: farEnoughFirstInteraction() });
     const res = await POST(/** @type {any} */ (event));
     const body = await res.json();
 
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(500);
     expect(body.error).toBeTruthy();
   });
 });

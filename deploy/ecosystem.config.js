@@ -3,7 +3,9 @@
 // Fork mode, single instance only. src/lib/server/rate-limit.js keeps its
 // state in an in-memory Map — cluster mode would run multiple independent
 // workers, each with its own Map, silently multiplying the effective
-// rate limit. Do not switch to cluster mode without moving that state to a
+// rate limit. src/lib/server/queue.js has the same constraint for a different
+// reason: several workers would pick up the same queued submission at once and
+// mail it twice. Do not switch to cluster mode without moving that state to a
 // shared store first (e.g. Redis or a file/SQLite-backed counter).
 //
 // SMTP_*/CONTACT_TO_EMAIL are intentionally NOT hardcoded here — this file
@@ -32,6 +34,10 @@ module.exports = {
         PROTOCOL_HEADER: "x-forwarded-proto",
         HOST_HEADER: "x-forwarded-host",
         ADDRESS_HEADER: "x-forwarded-for",
+        // Kolejka zgłoszeń. MUSI leżeć poza build/ — deploy synchronizuje ten
+        // katalog przez `rsync --delete`, co skasowałoby zgłoszenia czekające
+        // na wysyłkę. Ścieżka względna rozwija się względem `cwd` powyżej.
+        QUEUE_DIR: "queue",
       },
     },
   ],
