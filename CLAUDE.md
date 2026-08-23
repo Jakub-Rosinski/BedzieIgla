@@ -102,9 +102,10 @@ VITE_S3_PREFIX         # Folder prefix, e.g. gallery/ (default: gallery/)
 # (deploy/.env.example), read via process.env at request time.
 SMTP_HOST               # ssl0.ovh.net — MUST be OVH, see SPF note below
 SMTP_PORT               # e.g. 465
-SMTP_USER               # SMTP auth user (Gmail App Password holder)
-SMTP_PASS               # SMTP auth password (Gmail App Password)
-CONTACT_TO_EMAIL        # Inbox that receives contact-form submissions
+SMTP_USER               # kontakt@bedzieigla.pl — a real OVH MX Plan mailbox (verified: 5 GB,
+                        # not an alias). Doubles as the From address, see SPF note below.
+SMTP_PASS               # Password of that mailbox, set/reset in the OVH MX Plan panel
+CONTACT_TO_EMAIL        # Inbox that receives contact-form submissions (Gosia's Gmail)
 QUEUE_DIR               # Submission queue dir (default: queue) — MUST be outside build/
 ```
 
@@ -135,7 +136,8 @@ QUEUE_DIR               # Submission queue dir (default: queue) — MUST be outs
 
 - Order the OVH VPS-1 and run `deploy/setup-vps.sh` on it (Nginx, PM2, Node, ufw, certbot)
 - Point `bedzieigla.pl` DNS at the new VPS IP, then run `certbot --nginx` for the TLS cert
-- Generate a Gmail App Password and set real `SMTP_*`/`CONTACT_TO_EMAIL` values in the VPS-local `.env` (`deploy/.env.example`) — never in git, never in CI
+- Set/reset the password of the `kontakt@bedzieigla.pl` OVH mailbox and put the real `SMTP_*`/`CONTACT_TO_EMAIL` values in the VPS-local `.env` (`deploy/.env.example`) — never in git, never in CI. **Not** a Gmail App Password: authenticating on Google's SMTP with `From: @bedzieigla.pl` fails the domain's `-all` SPF outright
+- Enable DKIM signing for `bedzieigla.pl` in the OVH MX Plan panel — the panel flags it red under Diagnostic and no selector is published in DNS (checked). Do this **before** adding the DMARC record, otherwise DMARC reports can't distinguish a forwarding hop from a real failure
 - Add `VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY` GitHub Actions secrets for the SSH deploy job; old `FTP_*` secrets are now unused. **`VPS_USER` must be exactly `deploy`** — `ecosystem.config.js` (`cwd`) and `nginx.conf.template` (`root`) hardcode `/home/deploy/bedzieigla`
 - Set all `VITE_*` env vars on the production server (build-time, via GitHub Actions secrets as before)
 - Smoke-test the live form end-to-end: confirm a full-quality photo attachment actually lands at `CONTACT_TO_EMAIL`
