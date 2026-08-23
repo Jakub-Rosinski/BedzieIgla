@@ -28,11 +28,6 @@
     let status = "idle";
     let errorMsg = "";
 
-    // EmailJS — ustaw zmienne środowiskowe VITE_EMAILJS_* w .env
-    const EMAILJS_SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID  ?? "";
-    const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID ?? "";
-    const EMAILJS_PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY  ?? "";
-
     // Honeypot — musi pozostać false. Boty zaznaczają ukryte checkboxy.
     let botcheck = false;
 
@@ -46,29 +41,45 @@
     const MAX_FILE_SIZE_MB = 5;
     const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
-    const MAX_IMG_PX = 400;   // max dimension after resize
-    const JPEG_QUALITY = 0.4; // JPEG compression quality
-    const MAX_INSPIRACJE_BYTES = 44_000; // EmailJS template vars limit is 50 KB total
+    const MAX_IMG_PX = 2200;   // max dimension after resize — plenty for tattoo reference photos
+    const JPEG_QUALITY = 0.85; // JPEG compression quality
+    const SKIP_RESIZE_UNDER_BYTES = 1024 * 1024; // don't re-encode already-small files
 
     /**
-     * Compresses an image file via canvas and returns a JPEG data URL.
-     * Scales down to MAX_IMG_PX on the longest side to stay within EmailJS 50 KB limit.
+     * Resizes an image file via canvas to MAX_IMG_PX/JPEG_QUALITY, returned as a File.
+     * Skips re-encoding files that are already small — no artificial cap to fight anymore,
+     * the server (/api/contact) sends the real file as a MIME attachment.
      * @param {File} file
-     * @returns {Promise<string>} compressed JPEG data URL
+     * @returns {Promise<File>}
      */
-    function compressImage(file) {
+    function resizeForUpload(file) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             const objUrl = URL.createObjectURL(file);
             img.onload = () => {
                 URL.revokeObjectURL(objUrl);
-                const scale = Math.min(1, MAX_IMG_PX / Math.max(img.width, img.height));
+                const longest = Math.max(img.width, img.height);
+                if (file.size <= SKIP_RESIZE_UNDER_BYTES && longest <= MAX_IMG_PX) {
+                    resolve(file);
+                    return;
+                }
+                const scale = Math.min(1, MAX_IMG_PX / longest);
                 const canvas = document.createElement("canvas");
                 canvas.width  = Math.round(img.width  * scale);
                 canvas.height = Math.round(img.height * scale);
                 /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"))
                     .drawImage(img, 0, 0, canvas.width, canvas.height);
-                resolve(canvas.toDataURL("image/jpeg", JPEG_QUALITY));
+                canvas.toBlob(
+                    (blob) => {
+                        if (!blob) {
+                            reject(new Error(`Nie udało się przetworzyć pliku "${file.name}".`));
+                            return;
+                        }
+                        resolve(new File([blob], file.name, { type: "image/jpeg" }));
+                    },
+                    "image/jpeg",
+                    JPEG_QUALITY
+                );
             };
             img.onerror = reject;
             img.src = objUrl;
@@ -76,29 +87,19 @@
     }
 
     /**
-     * Validates, compresses, and builds an HTML string with inline <img> tags.
-     * Rendered in the EmailJS template with {{{inspiracje_html}}} (triple braces = raw HTML).
+     * Validates and resizes the selected inspiration files for upload.
      * @param {FileList} fileList
-     * @returns {Promise<string>}
+     * @returns {Promise<File[]>}
      */
-    async function filesToInlineHtml(fileList) {
-        for (const file of Array.from(fileList)) {
+    async function prepareFiles(fileList) {
+        const files = Array.from(fileList);
+        for (const file of files) {
             if (!file.type.startsWith("image/"))
                 throw new Error(`Plik "${file.name}" nie jest obrazem.`);
             if (file.size > MAX_FILE_SIZE_BYTES)
                 throw new Error(`Plik "${file.name}" przekracza ${MAX_FILE_SIZE_MB} MB.`);
         }
-        const imgs = await Promise.all(
-            Array.from(fileList).map(async (file) => {
-                const dataUrl = await compressImage(file);
-                return (
-                    `<p style="margin:4px 0;font-size:12px;color:#888;">${file.name}</p>` +
-                    `<img src="${dataUrl}" alt="${file.name}" ` +
-                    `style="max-width:560px;width:100%;display:block;margin:0 0 16px;">`
-                );
-            })
-        );
-        return imgs.join("\n");
+        return Promise.all(files.map(resizeForUpload));
     }
 
     // ─── Wysyłka ──────────────────────────────────────────────────────────────
@@ -134,54 +135,35 @@
             return;
         }
 
-        // Guard: brak konfiguracji EmailJS
-        if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-            errorMsg =
-                "Formularz nie jest jeszcze skonfigurowany. Napisz bezpośrednio na adres e-mail lub social media.";
-            return;
-        }
-
         status = "sending";
         errorMsg = "";
 
-        // Validate and encode images as inline HTML for the email template
-        let inspiracje_html = "";
+        // Walidacja i lekkie skalowanie zdjęć (pełna jakość leci na serwer jako MIME attachment)
+        let preparedFiles = [];
         try {
-            inspiracje_html = inspFiles?.length ? await filesToInlineHtml(inspFiles) : "";
+            preparedFiles = inspFiles?.length ? await prepareFiles(inspFiles) : [];
         } catch (err) {
             status = "error";
             errorMsg = err instanceof Error ? err.message : "Błąd pliku.";
             return;
         }
-        if (inspiracje_html.length > MAX_INSPIRACJE_BYTES) {
-            status = "error";
-            errorMsg = "Inspiracje są za duże — prześlij mniej plików lub mniejsze obrazy.";
-            return;
-        }
 
         try {
-            const payload = {
-                service_id:  EMAILJS_SERVICE_ID,
-                template_id: EMAILJS_TEMPLATE_ID,
-                user_id:     EMAILJS_PUBLIC_KEY,
-                template_params: {
-                    from_name:       name.trim(),
-                    reply_to:        email.trim(),
-                    phone:           phone.trim(),
-                    miejsce:         miejsce.trim(),
-                    wielkosc:        wielkosc.trim(),
-                    message:         message.trim(),
-                    inspiracje_html: inspiracje_html || "(brak inspiracji)",
-                },
-            };
+            const fd = new FormData();
+            fd.append("name", name.trim());
+            fd.append("email", email.trim());
+            fd.append("phone", phone.trim());
+            fd.append("miejsce", miejsce.trim());
+            fd.append("wielkosc", wielkosc.trim());
+            fd.append("message", message.trim());
+            fd.append("firstInteractionAt", String(firstInteractionAt));
+            fd.append("botcheck", botcheck ? "1" : "");
+            for (const file of preparedFiles) fd.append("inspiracje", file, file.name);
 
-            const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
+            const res = await fetch("/api/contact", { method: "POST", body: fd });
+            const data = await res.json().catch(() => ({}));
 
-            if (res.ok) {
+            if (res.ok && data.ok) {
                 recordSuccessfulSend(email);
                 status = "success";
                 name = "";
@@ -192,12 +174,16 @@
                 wielkosc = "";
                 inspFiles = null;
                 firstInteractionAt = 0;
+            } else if (res.status === 429) {
+                status = "error";
+                errorMsg = data.error || "Zbyt wiele zgłoszeń. Spróbuj ponownie za chwilę.";
             } else if (res.status === 413) {
                 status = "error";
                 errorMsg = "Inspiracje są za duże — spróbuj przesłać mniej plików lub mniejsze obrazy.";
             } else {
                 status = "error";
                 errorMsg =
+                    data.error ||
                     "Nie udało się wysłać wiadomości. Spróbuj ponownie lub skontaktuj się przez social media.";
             }
         } catch {
