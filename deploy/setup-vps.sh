@@ -82,7 +82,7 @@ add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 add_header Permissions-Policy "geolocation=(self), microphone=(), camera=()" always;
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.s3.*.perf.cloud.ovh.net https://picsum.photos https://*.picsum.photos https://www.google-analytics.com; connect-src 'self' https://router.project-osrm.org https://*.s3.*.perf.cloud.ovh.net https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net; frame-ancestors 'none';" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://bedzie-igla.s3.waw.perf.cloud.ovh.net https://picsum.photos https://*.picsum.photos https://www.google-analytics.com; connect-src 'self' https://router.project-osrm.org https://bedzie-igla.s3.waw.perf.cloud.ovh.net https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net; frame-ancestors 'none';" always;
 EOF
 
 echo "==> 10. PM2 startup on boot (registers a systemd service for the deploy user)"
