@@ -52,6 +52,11 @@ describe("sendContactEmail — adresowanie", () => {
     expect(sendMailMock.mock.calls[0][0].from).toContain("kontakt@bedzieigla.pl");
   });
 
+  it("wysyła kopię (Bcc) na skrzynkę kontakt@ — archiwum niezależne od skrzynki Gosi", async () => {
+    await sendContactEmail(PARAMS);
+    expect(sendMailMock.mock.calls[0][0].bcc).toBe("kontakt@bedzieigla.pl");
+  });
+
   it("umieszcza dane kontaktowe w treści", async () => {
     await sendContactEmail(PARAMS);
     const { text, subject } = sendMailMock.mock.calls[0][0];

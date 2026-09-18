@@ -39,6 +39,7 @@ export async function sendContactEmail({ name, email, phone, miejsce, wielkosc, 
   await transporter.sendMail({
     from: `"Formularz bedzieigla.pl" <${SMTP_USER}>`,
     to: CONTACT_TO_EMAIL,
+    bcc: SMTP_USER, // kopia archiwalna w skrzynce kontakt@, niezależna od skrzynki Gosi
     replyTo: email,
     subject: `Nowe zapytanie — ${name}`,
     text:
