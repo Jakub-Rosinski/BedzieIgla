@@ -101,12 +101,12 @@ SMTP musi być po stronie OVH, nie Gmaila — rekord SPF domeny to `v=spf1 inclu
 
 W trybie testowym (brak `VITE_S3_LIST_URL`) galeria wyświetla zdjęcia z picsum.photos. Aby użyć prawdziwego bucketa:
 
-1. W panelu OVH (Public Cloud → Object Storage) ustaw politykę bucketa pozwalającą anonimowemu użytkownikowi na `s3:ListBucket`
-2. Wgraj zdjęcia do folderu `gallery/` w buckecie (obsługiwane formaty: `jpg`, `jpeg`, `png`, `webp`, `gif`, `avif`)
-3. Ustaw w `.env` i sekretach GitHub (build-time, `VITE_*`):
+1. W panelu OVH (Public Cloud → Object Storage) ustaw bucket/object ACL `public-read` (grant `AllUsers:READ`) — OVH nie implementuje bucket policy (IAM-style), tylko ACL
+2. Wgraj zdjęcia do folderu `gallery/` w buckecie (obsługiwane formaty: `jpg`, `jpeg`, `png`, `webp`, `gif`, `avif` — **nie** `heic`), z ACL `public-read` na każdym obiekcie, inaczej zwróci `403`
+3. Ustaw w `.env` i sekretach GitHub (build-time, `VITE_*`) — `VITE_S3_LIST_URL` musi być w formie virtual-hosted (`<bucket>.s3.<region>.perf.cloud.ovh.net`); ten endpoint OVH odrzuca styl path-style (`s3.<region>.perf.cloud.ovh.net/<bucket>`) błędem "Not S3 request":
 
 ```
-VITE_S3_LIST_URL=https://s3.waw.perf.cloud.ovh.net/bedzie-igla
+VITE_S3_LIST_URL=https://bedzie-igla.s3.waw.perf.cloud.ovh.net
 VITE_S3_PUBLIC_URL=https://bedzie-igla.s3.waw.perf.cloud.ovh.net
 ```
 
