@@ -31,6 +31,12 @@ echo "==> 3. Deploy user (non-root, runs PM2 and receives CI deploys)"
 # GitHub Actions secrets, so it should have no path to root if that key leaks.
 if ! id -u "$APP_USER" >/dev/null 2>&1; then
   adduser --disabled-password --gecos "" "$APP_USER"
+  # adduser's default home dir mode is 750 (owner rwx, group r-x, others
+  # none) — nginx runs as www-data, which is in neither the deploy user
+  # nor deploy group, so without o+x here every open() under this home
+  # dir fails with EACCES and nginx serves 403 for the whole site's static
+  # assets (build/client/), even though every directory below is 755.
+  chmod o+x "/home/$APP_USER"
 fi
 mkdir -p "/home/$APP_USER/.ssh"
 touch "/home/$APP_USER/.ssh/authorized_keys"
@@ -76,7 +82,7 @@ add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 add_header Permissions-Policy "geolocation=(self), microphone=(), camera=()" always;
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.tile.openstreetmap.org https://*.s3.*.perf.cloud.ovh.net https://picsum.photos https://*.picsum.photos https://www.google-analytics.com; connect-src 'self' https://router.project-osrm.org https://*.s3.*.perf.cloud.ovh.net https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net; frame-ancestors 'none';" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.s3.*.perf.cloud.ovh.net https://picsum.photos https://*.picsum.photos https://www.google-analytics.com; connect-src 'self' https://router.project-osrm.org https://*.s3.*.perf.cloud.ovh.net https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net; frame-ancestors 'none';" always;
 EOF
 
 echo "==> 10. PM2 startup on boot (registers a systemd service for the deploy user)"
@@ -92,7 +98,7 @@ echo "Provisioning done. Remaining manual steps:"
 echo "  1. Add the CI deploy public key to /home/$APP_USER/.ssh/authorized_keys (see step 3)"
 echo "  2. Copy deploy/ecosystem.config.cjs into $APP_DIR/"
 echo "  3. Create $APP_DIR/.env from deploy/.env.example with real SMTP_*/CONTACT_TO_EMAIL values"
-echo "     chmod 600 $APP_DIR/.env  # contains the Gmail App Password"
+echo "     chmod 600 $APP_DIR/.env  # contains the OVH mailbox password"
 echo "  4. Bootstrap Nginx on port 80 only, then run:"
 echo "       certbot --nginx -d bedzieigla.pl -d www.bedzieigla.pl"
 echo "     (see the BOOTSTRAP ORDER note at the top of deploy/nginx.conf.template —"
