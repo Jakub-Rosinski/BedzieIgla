@@ -53,7 +53,6 @@ static/
   gosia-photo.jpg       # Portrait for the "O mnie" section (800x902, optimised)
   robots.txt            # Allows all crawlers, points to sitemap
   sitemap.xml           # Single-URL sitemap — update lastmod on content changes
-  .htaccess             # OBSOLETE — superseded by deploy/nginx.conf.template, kept until VPS cutover confirmed
 deploy/
   setup-vps.sh          # One-time OVH VPS provisioning script (Nginx, PM2, Node, ufw, certbot)
   ecosystem.config.cjs   # PM2 process file (fork mode, single instance — see rate-limit.js note)
@@ -126,19 +125,18 @@ QUEUE_DIR               # Submission queue dir (default: queue) — MUST be outs
 - **Gallery — S3 mode**: Calls `VITE_S3_LIST_URL?list-type=2&prefix=...`, parses XML via `parseS3Xml` in `s3-utils.js`, builds URLs from `VITE_S3_PUBLIC_URL`. Falls back to picsum.photos when `VITE_S3_LIST_URL` is empty.
 - **SEO**: `app.html` has complete meta tags (description, keywords, OG, Twitter Card). `+page.svelte` has canonical link and JSON-LD `TattooParlor` structured data (address, GPS, phone, socials, Gosia's education). `static/sitemap.xml` and `static/robots.txt` present.
 - **Analytics**: GA4 injected in `+layout.svelte` via `{@html}` in `<svelte:head>`. Only loads when `VITE_GA4_ID` is set — safe to leave empty in dev.
-- **Security headers**: Set via Nginx (`deploy/nginx.conf.template`) — CSP (covers GA4, OSM, OSRM, OVH S3, Google Fonts; no longer needs api.emailjs.com since the form posts same-origin), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS, Permissions-Policy, HTTPS redirect, static asset caching, gzip. They live in an `/etc/nginx/snippets/bedzieigla-security.conf` snippet that every `location` block `include`s — **Nginx does not inherit `add_header` into a location that declares its own**, so without the re-include, `/_app/*` assets would silently lose every security header. `static/.htaccess` is obsolete (Apache no longer in the request path) but left in place until the VPS cutover is confirmed live.
+- **Security headers**: Set via Nginx (`deploy/nginx.conf.template`) — CSP (covers GA4, OSM, OSRM, OVH S3, Google Fonts; `img-src` needs `blob:` for `KontaktSection.svelte`'s client-side photo-resize step (`URL.createObjectURL` + canvas), or every submission with an attached photo fails client-side with "Błąd pliku." before reaching the server; no longer needs api.emailjs.com since the form posts same-origin), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS, Permissions-Policy, HTTPS redirect, static asset caching, gzip. They live in an `/etc/nginx/snippets/bedzieigla-security.conf` snippet that every `location` block `include`s — **Nginx does not inherit `add_header` into a location that declares its own**...
 - **Nginx bootstrap order**: `nginx.conf.template` contains a TLS block, which Nginx refuses to load before certificates exist. Bring the site up on port 80 first, run `certbot --nginx`, then install the full template. See the note at the top of that file.
 - **Deploy target**: OVH VPS-1 running Node via PM2 (fork mode, single instance — see `src/lib/server/rate-limit.js`'s comment on why cluster mode isn't safe here) behind Nginx. `.github/workflows/deploy.yml` rsyncs the build over SSH and reloads PM2, replacing the previous FTP-to-shared-hosting deploy.
+- **Deploy user home dir permission**: `adduser`'s default mode for `/home/deploy` is `750` (owner rwx, group r-x, others none). Nginx runs as `www-data`, which is in neither the `deploy` user nor its group, so without `chmod o+x /home/deploy` every `open()` under it fails with `EACCES` — the entire site's static assets (`build/client/`, including the SvelteKit client bundle) 403, and the page never hydrates client-side despite the prerendered HTML looking fine and every CI check passing. `setup-vps.sh` sets this right after `adduser`; don't drop it if the user-creation step is ever refactored.
 - **Scroll-to-top button**: `ScrollTopButton.svelte`, rendered globally in `+layout.svelte`. Visibility toggled by a rAF-throttled passive `scroll` listener (`scrollY > innerHeight`), so it appears once the Hero leaves the viewport. `z-index: 8000` — above content, below the noise overlay (9000), custom cursor (9998/9999) and gallery lightbox (9999). Honours `prefers-reduced-motion` (no ring spin, instant scroll).
 - **body `cursor: none`**: Default cursor globally hidden (`app.css`); `Cursor.svelte` provides a custom animated replacement. Cards and interactive elements use `cursor: none` to keep the custom cursor.
 
-## Pending Before Launch
+## Launch Status
 
-- Order the OVH VPS-1 and run `deploy/setup-vps.sh` on it (Nginx, PM2, Node, ufw, certbot)
-- Point `bedzieigla.pl` DNS at the new VPS IP, then run `certbot --nginx` for the TLS cert
-- Set/reset the password of the `kontakt@bedzieigla.pl` OVH mailbox and put the real `SMTP_*`/`CONTACT_TO_EMAIL` values in the VPS-local `.env` (`deploy/.env.example`) — never in git, never in CI. **Not** a Gmail App Password: authenticating on Google's SMTP with `From: @bedzieigla.pl` fails the domain's `-all` SPF outright
-- Enable DKIM signing for `bedzieigla.pl` in the OVH MX Plan panel — the panel flags it red under Diagnostic and no selector is published in DNS (checked). Do this **before** adding the DMARC record, otherwise DMARC reports can't distinguish a forwarding hop from a real failure
-- Add `VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY` GitHub Actions secrets for the SSH deploy job; old `FTP_*` secrets are now unused. **`VPS_USER` must be exactly `deploy`** — `ecosystem.config.cjs` (`cwd`) and `nginx.conf.template` (`root`) hardcode `/home/deploy/bedzieigla`
-- Set all `VITE_*` env vars on the production server (build-time, via GitHub Actions secrets as before)
-- Smoke-test the live form end-to-end: confirm a full-quality photo attachment actually lands at `CONTACT_TO_EMAIL`
-- Update `<lastmod>` in `static/sitemap.xml` after each content deployment
+Live at `https://bedzieigla.pl` on OVH VPS-1 (`deploy/setup-vps.sh` provisioning, TLS via certbot, CI deploy via `.github/workflows/deploy.yml`). Smoke-tested end-to-end: a real form submission with a photo attachment returned `200 {"ok":true}` and drained cleanly from `queue/pending/` with no `[kolejka]` failure logs.
+
+Still open:
+- **DKIM** signing for `bedzieigla.pl` is not yet enabled in the OVH MX Plan panel (flags red under Diagnostic, no selector published in DNS). Do this **before** adding any DMARC record, otherwise DMARC reports can't distinguish a forwarding hop from a real failure.
+- **`VITE_GA4_ID`** is unset — analytics stays off (the documented default) until a GA4 property is created and the secret is set.
+- Update `<lastmod>` in `static/sitemap.xml` after each future content deployment (not just launch).
