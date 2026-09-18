@@ -102,6 +102,7 @@ jobs:
           # Tylko zmienne VITE_* — wbudowywane w build klienta w tym kroku, tak jak dotychczas.
           # Sekrety SMTP_*/CONTACT_TO_EMAIL NIGDY tutaj nie trafiają — są czytane w runtime
           # na VPS z lokalnego .env (patrz deploy/.env.example), nie z GitHub Actions.
+          VITE_GA4_ID:        ${{ secrets.VITE_GA4_ID }}
           VITE_S3_LIST_URL:   ${{ secrets.VITE_S3_LIST_URL }}
           VITE_S3_PUBLIC_URL: ${{ secrets.VITE_S3_PUBLIC_URL }}
           VITE_S3_PREFIX:     ${{ secrets.VITE_S3_PREFIX }}

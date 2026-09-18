@@ -80,7 +80,11 @@ add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsaf
 EOF
 
 echo "==> 10. PM2 startup on boot (registers a systemd service for the deploy user)"
-su - "$APP_USER" -c "pm2 startup systemd -u $APP_USER --hp /home/$APP_USER" | tail -n1 > /tmp/pm2-startup-cmd.sh
+# `pm2 startup` run as a non-root user always exits 1 by design — it just prints
+# the root-level command to copy/paste, it never performs the setup itself.
+# Under `set -euo pipefail` that expected failure would otherwise abort the
+# whole provisioning script before the captured command below ever runs.
+su - "$APP_USER" -c "pm2 startup systemd -u $APP_USER --hp /home/$APP_USER" | tail -n1 > /tmp/pm2-startup-cmd.sh || true
 bash /tmp/pm2-startup-cmd.sh
 
 echo ""
