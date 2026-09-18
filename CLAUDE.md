@@ -56,7 +56,7 @@ static/
   .htaccess             # OBSOLETE — superseded by deploy/nginx.conf.template, kept until VPS cutover confirmed
 deploy/
   setup-vps.sh          # One-time OVH VPS provisioning script (Nginx, PM2, Node, ufw, certbot)
-  ecosystem.config.js   # PM2 process file (fork mode, single instance — see rate-limit.js note)
+  ecosystem.config.cjs   # PM2 process file (fork mode, single instance — see rate-limit.js note)
   nginx.conf.template   # Reverse proxy: TLS, security headers, gzip, static asset caching
   .env.example           # VPS-only secrets template (SMTP_*, CONTACT_TO_EMAIL) — never committed with real values
 .env                    # VITE_* + SMTP_* env vars (never commit — see .env.example)
@@ -138,7 +138,7 @@ QUEUE_DIR               # Submission queue dir (default: queue) — MUST be outs
 - Point `bedzieigla.pl` DNS at the new VPS IP, then run `certbot --nginx` for the TLS cert
 - Set/reset the password of the `kontakt@bedzieigla.pl` OVH mailbox and put the real `SMTP_*`/`CONTACT_TO_EMAIL` values in the VPS-local `.env` (`deploy/.env.example`) — never in git, never in CI. **Not** a Gmail App Password: authenticating on Google's SMTP with `From: @bedzieigla.pl` fails the domain's `-all` SPF outright
 - Enable DKIM signing for `bedzieigla.pl` in the OVH MX Plan panel — the panel flags it red under Diagnostic and no selector is published in DNS (checked). Do this **before** adding the DMARC record, otherwise DMARC reports can't distinguish a forwarding hop from a real failure
-- Add `VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY` GitHub Actions secrets for the SSH deploy job; old `FTP_*` secrets are now unused. **`VPS_USER` must be exactly `deploy`** — `ecosystem.config.js` (`cwd`) and `nginx.conf.template` (`root`) hardcode `/home/deploy/bedzieigla`
+- Add `VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY` GitHub Actions secrets for the SSH deploy job; old `FTP_*` secrets are now unused. **`VPS_USER` must be exactly `deploy`** — `ecosystem.config.cjs` (`cwd`) and `nginx.conf.template` (`root`) hardcode `/home/deploy/bedzieigla`
 - Set all `VITE_*` env vars on the production server (build-time, via GitHub Actions secrets as before)
 - Smoke-test the live form end-to-end: confirm a full-quality photo attachment actually lands at `CONTACT_TO_EMAIL`
 - Update `<lastmod>` in `static/sitemap.xml` after each content deployment

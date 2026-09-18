@@ -7,7 +7,7 @@
 # Usage: scp this file to the VPS, then: sudo bash setup-vps.sh
 #
 # NOTE: the deploy user is named "deploy" and the app lives in
-# /home/deploy/bedzieigla — these are hardcoded in deploy/ecosystem.config.js
+# /home/deploy/bedzieigla — these are hardcoded in deploy/ecosystem.config.cjs
 # (cwd) and assumed by deploy/nginx.conf.template (root). The GitHub Actions
 # secret VPS_USER MUST therefore be set to exactly "deploy", or those paths
 # and the rsync target will disagree.
@@ -90,7 +90,7 @@ bash /tmp/pm2-startup-cmd.sh
 echo ""
 echo "Provisioning done. Remaining manual steps:"
 echo "  1. Add the CI deploy public key to /home/$APP_USER/.ssh/authorized_keys (see step 3)"
-echo "  2. Copy deploy/ecosystem.config.js into $APP_DIR/"
+echo "  2. Copy deploy/ecosystem.config.cjs into $APP_DIR/"
 echo "  3. Create $APP_DIR/.env from deploy/.env.example with real SMTP_*/CONTACT_TO_EMAIL values"
 echo "     chmod 600 $APP_DIR/.env  # contains the Gmail App Password"
 echo "  4. Bootstrap Nginx on port 80 only, then run:"
@@ -99,4 +99,4 @@ echo "     (see the BOOTSTRAP ORDER note at the top of deploy/nginx.conf.templat
 echo "      installing the TLS block before certs exist will fail 'nginx -t')"
 echo "  5. Install the full deploy/nginx.conf.template, then: nginx -t && systemctl reload nginx"
 echo "  6. Push to main (or run the first CI deploy), then as $APP_USER:"
-echo "       cd $APP_DIR && pnpm install --prod && pm2 start ecosystem.config.js && pm2 save"
+echo "       cd $APP_DIR && pnpm install --prod && pm2 start ecosystem.config.cjs && pm2 save"

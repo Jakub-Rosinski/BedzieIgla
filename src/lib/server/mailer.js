@@ -3,7 +3,7 @@
  * Zmienne środowiskowe czytane z process.env w runtime (nie w build time),
  * więc sekrety SMTP nigdy nie trafiają do builda ani do CI — ustawiane
  * wyłącznie na VPS (patrz deploy/.env.example), wczytywane przez
- * `-r dotenv/config` (patrz package.json "start", deploy/ecosystem.config.js).
+ * `-r dotenv/config` (patrz package.json "start", deploy/ecosystem.config.cjs).
  * Import tylko z src/lib/server/ — SvelteKit blokuje import tego modułu
  * z kodu klienckiego na etapie builda.
  */

@@ -1,4 +1,4 @@
-// PM2 process file — run on the VPS as: pm2 start ecosystem.config.js
+// PM2 process file — run on the VPS as: pm2 start ecosystem.config.cjs
 //
 // Fork mode, single instance only. src/lib/server/rate-limit.js keeps its
 // state in an in-memory Map — cluster mode would run multiple independent

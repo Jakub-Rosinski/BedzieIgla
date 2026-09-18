@@ -173,5 +173,5 @@ jobs:
             corepack enable &&
             corepack prepare pnpm@9.15.0 --activate &&
             pnpm install --prod --frozen-lockfile &&
-            pm2 reload ecosystem.config.js --env production
+            pm2 reload ecosystem.config.cjs --env production
           '

@@ -89,7 +89,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
-        # Must be >= BODY_SIZE_LIMIT in ecosystem.config.js, or uploads get rejected
+        # Must be >= BODY_SIZE_LIMIT in ecosystem.config.cjs, or uploads get rejected
         # here before Node ever sees them.
         client_max_body_size 25M;
     }
