@@ -127,12 +127,6 @@ jobs:
       name: production
       url: ${{ vars.SITE_URL }}
     steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: build
-          path: build/
-
       - name: Checkout (for package.json / pnpm-lock.yaml)
         uses: actions/checkout@v4
         with:
@@ -140,6 +134,15 @@ jobs:
             package.json
             pnpm-lock.yaml
           sparse-checkout-cone-mode: false
+
+      # MUST run after checkout: actions/checkout's default `clean: true` runs
+      # `git clean -ffdx` before checking out, which would delete this
+      # artifact's untracked build/ directory if downloaded first.
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: build/
 
       - name: Set up SSH agent
         uses: webfactory/ssh-agent@v0.9.0
