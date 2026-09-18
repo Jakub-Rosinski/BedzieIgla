@@ -215,7 +215,7 @@ Wielowarstwowa ochrona przed botami:
 
 ### Mapa
 
-Leaflet z ciemnymi kafelkami CartoDB, wyśrodkowana na lokalizacji studia (ul. Zawiszy Czarnego 22, Gliwice). Przycisk "Wyznacz trasę" pobiera geolokalizację przeglądarki i oblicza trasę samochodową przez OSRM (bez klucza API).
+Leaflet z kafelkami OpenStreetMap (bez klucza API), przyciemnionymi filtrem CSS (`invert` + `hue-rotate`) dla spójności z ciemną estetyką strony — CARTO's darmowe kafelki `dark_all` wymagają teraz płatnego klucza API, więc świadomie z nich zrezygnowano. Wyśrodkowana na lokalizacji studia (ul. Zawiszy Czarnego 22, Gliwice). Przycisk "Wyznacz trasę" pobiera geolokalizację przeglądarki i oblicza trasę samochodową przez OSRM (bez klucza API).
 
 ---
 

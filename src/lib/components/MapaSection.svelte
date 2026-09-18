@@ -62,17 +62,21 @@
                 attributionControl: false,
             });
 
-            // Ciemne kafelki CartoDB — pasują do kolorystyki
+            // Zwykłe kafelki OSM (bez klucza API) — przyciemnione filtrem CSS
+            // (.leaflet-tile-pane niżej). CARTO's dark_all wymaga teraz płatnego
+            // klucza API (basemaps.cartocdn.com zwraca kafelki z watermarkiem
+            // "API KEY REQUIRED" bez niego) — ta droga zostaje bezkluczowa,
+            // spójnie z routingiem OSRM.
             L.tileLayer(
-                "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-                { subdomains: "abcd", maxZoom: 19 },
+                "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                { subdomains: "abc", maxZoom: 19 },
             ).addTo(map);
 
             // Atrybucja — schowana ale legalnie obecna
             L.control
                 .attribution({ prefix: false, position: "bottomright" })
                 .addAttribution(
-                    '© <a href="https://carto.com">CARTO</a> © <a href="https://osm.org/copyright">OpenStreetMap</a>',
+                    '© <a href="https://osm.org/copyright">OpenStreetMap</a> contributors',
                 )
                 .addTo(map);
 
@@ -376,6 +380,13 @@
         width: 100%;
         height: 100%;
         background: #1a1c1f;
+    }
+
+    /* Zwykłe kafelki OSM są jasne — przyciemniamy filtrem CSS zamiast płatnego
+       klucza API CARTO. Filtr tylko na warstwie kafelków, nie na całej mapie,
+       żeby marker/popup/kontrolki zachowały swoje prawdziwe kolory. */
+    :global(.leaflet-tile-pane) {
+        filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
     }
 
     /* Leaflet zoom buttons override */
