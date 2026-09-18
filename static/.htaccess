@@ -1,3 +1,7 @@
+# OBSOLETE since the Node.js/OVH VPS migration — Apache/.htaccess is no longer
+# in the request path (Nginx + PM2 replace it, see deploy/nginx.conf.template).
+# Left in place only until the VPS cutover is confirmed live; safe to delete after.
+
 Options -Indexes
 
 # ─── Nagłówki bezpieczeństwa ───────────────────────────────────────────────────

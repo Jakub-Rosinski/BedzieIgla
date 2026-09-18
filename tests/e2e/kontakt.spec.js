@@ -98,11 +98,11 @@ test.describe("Formularz kontaktowy — walidacja", () => {
 
 test.describe("Formularz kontaktowy — wysyłka", () => {
   test.beforeEach(async ({ page }) => {
-    await page.route("https://api.emailjs.com/api/v1.0/email/send", async (route) => {
+    await page.route("**/api/contact", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ success: true, message: "Email sent successfully" }),
+        body: JSON.stringify({ ok: true }),
       });
     });
 
@@ -149,11 +149,11 @@ test.describe("Formularz kontaktowy — wysyłka", () => {
 
 test.describe("Formularz kontaktowy — błąd API", () => {
   test.beforeEach(async ({ page }) => {
-    await page.route("https://api.emailjs.com/api/v1.0/email/send", async (route) => {
+    await page.route("**/api/contact", async (route) => {
       await route.fulfill({
         status: 400,
         contentType: "application/json",
-        body: JSON.stringify({ status: 400, error: "Invalid access key" }),
+        body: JSON.stringify({ error: "Nie udało się wysłać wiadomości." }),
       });
     });
 

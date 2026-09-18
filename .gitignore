@@ -9,3 +9,17 @@ dist
 *.log
 .DS_Store
 Thumbs.db
+
+# Kolejka zgłoszeń kontaktowych (dane runtime, nigdy do repo)
+queue/
+
+# Raport Playwright — artefakt lokalnych uruchomień, zmienia się przy każdym `pnpm test:e2e`
+playwright-report/
+test-results/
+
+# Klucze/hasła generowane przez scripts/vps-launch-wizard.sh — nigdy do repo
+.root_bootstrap_key
+.root_bootstrap_key.pub
+.deploy_key
+.deploy_key.pub
+.ovh_ubuntu_password.tmp

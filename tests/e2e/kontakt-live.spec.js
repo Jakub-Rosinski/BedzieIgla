@@ -1,8 +1,14 @@
 /**
- * Live send tests — require real VITE_EMAILJS_* credentials in .env.
- * These tests do NOT mock the EmailJS API endpoint.
- * They are automatically skipped in CI (no credentials available there).
+ * Live send tests — hit the real /api/contact server route (no mocking),
+ * with real SMTP_* / CONTACT_TO_EMAIL credentials in .env.
+ * They are automatically skipped in CI (no SMTP credentials available there).
  * Run locally with: pnpm exec playwright test tests/e2e/kontakt-live.spec.js
+ *
+ * SCOPE NOTE: since the queue landed, /api/contact confirms ACCEPTANCE, not
+ * delivery — the worker mails asynchronously. A green run here proves the
+ * submission was validated and persisted, NOT that anything reached the inbox.
+ * To verify actual delivery, check the target mailbox, or watch QUEUE_DIR
+ * drain (a submission stuck in queue/pending means SMTP is rejecting it).
  */
 import { test, expect } from "@playwright/test";
 import path from "path";
@@ -45,23 +51,17 @@ async function generateLargeJpeg(page) {
 
 test.describe("Live send — bez załącznika", () => {
   test.beforeEach(async ({ page }) => {
-    test.skip(IS_CI, "Pomijany w CI — wymaga prawdziwych danych EmailJS");
+    test.skip(IS_CI, "Pomijany w CI — wymaga prawdziwych danych SMTP");
     await page.goto("/#kontakt");
     await page.waitForSelector("#kontakt form");
   });
 
   test("wysyła formularz bez załącznika i pokazuje sukces", async ({ page }) => {
-    let emailjsStatus = 0, emailjsBody = "";
+    let apiStatus = 0, apiBody = "";
     page.on("response", async res => {
-      if (res.url().includes("emailjs.com")) {
-        emailjsStatus = res.status();
-        emailjsBody = await res.text().catch(() => "(unreadable)");
-      }
-    });
-    page.on("request", req => {
-      if (req.url().includes("emailjs.com")) {
-        const body = JSON.parse(req.postData() ?? "{}");
-        console.log("EmailJS request — service_id:", body.service_id, "| template_id:", body.template_id);
+      if (res.url().includes("/api/contact")) {
+        apiStatus = res.status();
+        apiBody = await res.text().catch(() => "(unreadable)");
       }
     });
 
@@ -75,26 +75,26 @@ test.describe("Live send — bez załącznika", () => {
       await expect(success).toContainText(/wysłana/i);
       console.log("✓ Formularz bez załącznika — wysłany pomyślnie");
     } else {
-      console.error("EmailJS response —", emailjsStatus, emailjsBody);
+      console.error("/api/contact response —", apiStatus, apiBody);
       const msg = await page.locator('[role="alert"]').textContent();
-      throw new Error(`EmailJS zwrócił błąd (HTTP ${emailjsStatus}): ${emailjsBody}\nUI: ${msg}`);
+      throw new Error(`/api/contact zwrócił błąd (HTTP ${apiStatus}): ${apiBody}\nUI: ${msg}`);
     }
   });
 });
 
 test.describe("Live send — z załącznikiem", () => {
   test.beforeEach(async ({ page }) => {
-    test.skip(IS_CI, "Pomijany w CI — wymaga prawdziwych danych EmailJS");
+    test.skip(IS_CI, "Pomijany w CI — wymaga prawdziwych danych SMTP");
     await page.goto("/#kontakt");
     await page.waitForSelector("#kontakt form");
   });
 
   test("wysyła formularz z załącznikiem PNG (logo) i pokazuje sukces", async ({ page }) => {
-    let emailjsStatus = 0, emailjsBody = "";
+    let apiStatus = 0, apiBody = "";
     page.on("response", async res => {
-      if (res.url().includes("emailjs.com")) {
-        emailjsStatus = res.status();
-        emailjsBody = await res.text().catch(() => "(unreadable)");
+      if (res.url().includes("/api/contact")) {
+        apiStatus = res.status();
+        apiBody = await res.text().catch(() => "(unreadable)");
       }
     });
 
@@ -112,16 +112,16 @@ test.describe("Live send — z załącznikiem", () => {
       console.log("✓ Załącznik PNG (logo) — wysłany pomyślnie");
     } else {
       const msg = await page.locator('[role="alert"]').textContent();
-      throw new Error(`HTTP ${emailjsStatus}: ${emailjsBody}\nUI: ${msg}`);
+      throw new Error(`HTTP ${apiStatus}: ${apiBody}\nUI: ${msg}`);
     }
   });
 
   test("wysyła formularz z dużym zdjęciem JPEG (1200×1600) i pokazuje sukces", async ({ page }) => {
-    let emailjsStatus = 0, emailjsBody = "";
+    let apiStatus = 0, apiBody = "";
     page.on("response", async res => {
-      if (res.url().includes("emailjs.com")) {
-        emailjsStatus = res.status();
-        emailjsBody = await res.text().catch(() => "(unreadable)");
+      if (res.url().includes("/api/contact")) {
+        apiStatus = res.status();
+        apiBody = await res.text().catch(() => "(unreadable)");
       }
     });
 
@@ -145,16 +145,16 @@ test.describe("Live send — z załącznikiem", () => {
       console.log("✓ Duże zdjęcie JPEG 1200×1600 — skompresowane i wysłane pomyślnie");
     } else {
       const msg = await page.locator('[role="alert"]').textContent();
-      throw new Error(`HTTP ${emailjsStatus}: ${emailjsBody}\nUI: ${msg}`);
+      throw new Error(`HTTP ${apiStatus}: ${apiBody}\nUI: ${msg}`);
     }
   });
 
   test("wysyła formularz z dwoma zdjęciami naraz i pokazuje sukces", async ({ page }) => {
-    let emailjsStatus = 0, emailjsBody = "";
+    let apiStatus = 0, apiBody = "";
     page.on("response", async res => {
-      if (res.url().includes("emailjs.com")) {
-        emailjsStatus = res.status();
-        emailjsBody = await res.text().catch(() => "(unreadable)");
+      if (res.url().includes("/api/contact")) {
+        apiStatus = res.status();
+        apiBody = await res.text().catch(() => "(unreadable)");
       }
     });
 
@@ -178,7 +178,7 @@ test.describe("Live send — z załącznikiem", () => {
       console.log("✓ Dwa zdjęcia naraz — skompresowane i wysłane pomyślnie");
     } else {
       const msg = await page.locator('[role="alert"]').textContent();
-      throw new Error(`HTTP ${emailjsStatus}: ${emailjsBody}\nUI: ${msg}`);
+      throw new Error(`HTTP ${apiStatus}: ${apiBody}\nUI: ${msg}`);
     }
   });
 
