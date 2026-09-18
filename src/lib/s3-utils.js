@@ -10,7 +10,8 @@ export const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "webp", "gif", "avif"])
 /**
  * Parsuje odpowiedź XML z S3 ListObjectsV2 i zwraca listę obiektów galerii.
  *
- * Bucket musi mieć politykę s3:ListBucket dla Principal "*" (publiczne listowanie).
+ * Bucket i obiekty muszą mieć ACL "public-read" (grant AllUsers:READ) — OVH nie
+ * implementuje bucket policy (IAM-style), GetBucketPolicy zwraca "NotImplemented".
  * Elementy są sortowane alfabetycznie po kluczu, co daje stabilną kolejność
  * niezależnie od kolejności zwracanej przez S3.
  *

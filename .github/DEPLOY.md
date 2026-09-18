@@ -33,7 +33,7 @@ Ustaw je w: **GitHub → repo → Settings → Secrets and variables → Actions
 | Secret | Przykład | Gdzie znaleźć |
 |--------|----------|---------------|
 | `VITE_GA4_ID` | `G-XXXXXXXXXX` | [analytics.google.com](https://analytics.google.com) → Admin → Data Streams (opcjonalny — puste = analytics wyłączone) |
-| `VITE_S3_LIST_URL` | `https://s3.waw.perf.cloud.ovh.net/bedzie-igla` | Panel OVH → Object Storage |
+| `VITE_S3_LIST_URL` | `https://bedzie-igla.s3.waw.perf.cloud.ovh.net` | Panel OVH → Object Storage (musi być virtual-hosted-style; path-style zwraca "Not S3 request") |
 | `VITE_S3_PUBLIC_URL` | `https://bedzie-igla.s3.waw.perf.cloud.ovh.net` | Panel OVH → Object Storage |
 | `VITE_S3_PREFIX` | `gallery/` | Prefix folderu w buckecie S3 |
 
