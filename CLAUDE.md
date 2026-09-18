@@ -132,11 +132,26 @@ QUEUE_DIR               # Submission queue dir (default: queue) — MUST be outs
 - **Scroll-to-top button**: `ScrollTopButton.svelte`, rendered globally in `+layout.svelte`. Visibility toggled by a rAF-throttled passive `scroll` listener (`scrollY > innerHeight`), so it appears once the Hero leaves the viewport. `z-index: 8000` — above content, below the noise overlay (9000), custom cursor (9998/9999) and gallery lightbox (9999). Honours `prefers-reduced-motion` (no ring spin, instant scroll).
 - **body `cursor: none`**: Default cursor globally hidden (`app.css`); `Cursor.svelte` provides a custom animated replacement. Cards and interactive elements use `cursor: none` to keep the custom cursor.
 
-## Launch Status
+## Launch Status (as of 2026-09-18)
 
-Live at `https://bedzieigla.pl` on OVH VPS-1 (`deploy/setup-vps.sh` provisioning, TLS via certbot, CI deploy via `.github/workflows/deploy.yml`). Smoke-tested end-to-end: a real form submission with a photo attachment returned `200 {"ok":true}` and drained cleanly from `queue/pending/` with no `[kolejka]` failure logs.
+**Live and working**: `https://bedzieigla.pl` on OVH VPS-1 (`146.59.103.74`, Warsaw), TLS valid for apex + `www`, CI deploy green (`.github/workflows/deploy.yml`, PR-gated — `main` is branch-protected, always merge via `gh pr create --base main` → wait for checks → `gh pr merge`, never push directly). Gallery serves real S3 photos (not the picsum fallback). Contact form verified end-to-end with a real browser-driven submission: `POST /api/contact` → `200 {"ok":true}`, queue drains clean.
 
-Still open:
-- **DKIM** signing for `bedzieigla.pl` is not yet enabled in the OVH MX Plan panel (flags red under Diagnostic, no selector published in DNS). Do this **before** adding any DMARC record, otherwise DMARC reports can't distinguish a forwarding hop from a real failure.
-- **`VITE_GA4_ID`** is unset — analytics stays off (the documented default) until a GA4 property is created and the secret is set.
-- Update `<lastmod>` in `static/sitemap.xml` after each future content deployment (not just launch).
+**Five production bugs found and fixed this session — none caught by CI, only by actually exercising the live server/browser:**
+1. `pm2 startup` exit-1-by-design aborted `setup-vps.sh` under `set -euo pipefail` (fixed: `|| true`)
+2. `deploy.yml` downloaded the build artifact before `checkout`, whose default `git clean -ffdx` deleted it (fixed: reordered)
+3. `ecosystem.config.js` was CommonJS but `package.json` has `"type": "module"` (fixed: renamed `.cjs`, all references updated)
+4. `/home/deploy` mode 750 blocked Nginx (`www-data`) from the whole site's static assets → client never hydrated despite looking fine (fixed: `chmod o+x` in `setup-vps.sh`)
+5. CSP `img-src`/`connect-src` had an invalid double-wildcard S3 source, silently dropped by the browser → gallery `fetch()` blocked, silently fell back to picsum for months (fixed: exact literal hostname)
+
+Full narrative and fix commits are in `release-2.0.0`'s history (PRs #32–#40) and in the "Key Implementation Notes" bullets above, which is where their *lasting* documentation lives — this section is a snapshot, not the source of truth for how the code works.
+
+**Local, gitignored, still on this machine** (`scripts/vps-launch-wizard.sh` output): `.root_bootstrap_key` (root-equivalent sudo access to the VPS as `ubuntu`), `.deploy_key` (the CI deploy key, mirrors `VPS_SSH_KEY` secret), `.ovh_ubuntu_password.tmp`. Safe to delete once confident no more manual VPS access is needed; regenerate via the wizard or a fresh `ssh-keygen` + re-provisioning otherwise.
+
+**GitHub issues — audited 2026-09-18** (see `issue://` for live state):
+- Closed with verification evidence in the comment: #13/#37/#38 (gallery photos added), #22/#23/#24 (VPS provisioning/secrets/DNS cutover)
+- Created: #41 — DKIM enablement, `priority-low`, split out of #20/#21 so it isn't lost
+- Labelled `priority-low` + status comment (not closed, decision still pending): #30 — GA4 wiring bug is fixed but whether to enable analytics (needs a cookie-consent banner) or rip out the dead code is undecided
+- Status comment, not closed: #14 (epic, most sub-issues still open), #20 (SMTP — password reset done, `Bcc` to `kontakt@` not implemented, inbox-vs-spam delivery unconfirmed — ask about the test email), #26 (smoke-test checklist, partially done, several items reference the unimplemented #19 S3-attachment design and need reframing)
+- Untouched, genuinely open: #31 (queue size/cleanup limits), #25 (uptime monitoring — was supposed to land *before* #24 per #14's own plan, didn't), #21 (DMARC, blocked on #41), #19 (S3 attachments enhancement, `needs-info`), #12 (needs clarification from Gosia), #11, #10 (gated on #26), #4, #3 (both empty-body feature requests, no page exists yet)
+
+**Next session, if asked to continue this thread**: check #41 (DKIM) and #30 (GA4 decision) first — both are quick, self-contained, no code archaeology needed. #20/#26/#10 form a chain (`Bcc` implementation → smoke-test confirmation → close #10) — pick that up if the goal is "properly close out the 2.0.0 launch."
