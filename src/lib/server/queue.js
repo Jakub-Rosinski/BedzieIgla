@@ -200,6 +200,37 @@ export async function processDue() {
   return stats;
 }
 
+/**
+ * Zgłoszenie czekające dłużej niż tyle oznacza, że wysyłka nie działa: przy
+ * odstępach 1 → 5 → 15 min po 30 minutach padły już co najmniej 3 próby.
+ */
+const STUCK_AFTER_MS = 30 * 60_000;
+
+/**
+ * Stan kolejki dla monitoringu (#25). Celowo NIE łączy się z SMTP — sonda
+ * co kilka minut na publicznym endpoincie oznaczałaby setki logowań na
+ * `kontakt@` dziennie i dawała każdemu sposób na zablokowanie skrzynki przez
+ * OVH. Awaria SMTP i tak widać tutaj: zgłoszenia utykają w `pending/`.
+ *
+ * @param {number} [now]
+ * @returns {Promise<{ ok: boolean, pending: number, stuck: number, dead: number }>}
+ */
+export async function queueHealth(now = Date.now()) {
+  /** @param {string} dir */
+  const list = (dir) => fs.readdir(dir).catch(() => /** @type {string[]} */ ([]));
+
+  const pendingIds = await list(pendingDir());
+  const dead = (await list(deadDir())).length;
+
+  let stuck = 0;
+  for (const id of pendingIds) {
+    const job = await readJob(path.join(pendingDir(), id));
+    if (job && now - job.createdAt > STUCK_AFTER_MS) stuck++;
+  }
+
+  return { ok: stuck === 0 && dead === 0, pending: pendingIds.length, stuck, dead };
+}
+
 /** @type {NodeJS.Timeout | null} */
 let timer = null;
 let running = false;

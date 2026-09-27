@@ -9,7 +9,7 @@ vi.mock("./mailer.js", () => ({
   sendContactEmail: (/** @type {any} */ args) => sendContactEmailMock(args),
 }));
 
-import { enqueue, processDue, __testing } from "./queue.js";
+import { enqueue, processDue, queueHealth, __testing } from "./queue.js";
 
 /** @type {string} */
 let root;
@@ -219,5 +219,28 @@ describe("kolejka — trwałość", () => {
     const stats = await processDue();
 
     expect(stats.sent).toBe(1); // poprawne zgłoszenie mimo to poszło
+  });
+});
+
+describe("kolejka — stan dla monitoringu", () => {
+  it("świeże zgłoszenie w pending/ to normalny stan, nie awaria", async () => {
+    await enqueue({ ...VALID, attachments: [] });
+
+    expect(await queueHealth()).toMatchObject({ ok: true, pending: 1, stuck: 0 });
+  });
+
+  it("zgłoszenie wiszące ponad 30 min albo cokolwiek w dead/ zgłasza awarię", async () => {
+    await enqueue({ ...VALID, attachments: [] });
+    const in31min = Date.now() + 31 * 60_000;
+    expect(await queueHealth(in31min)).toMatchObject({ ok: false, stuck: 1 });
+
+    const [id] = await fs.readdir(__testing.pendingDir());
+    await fs.mkdir(__testing.deadDir(), { recursive: true });
+    await fs.rename(path.join(__testing.pendingDir(), id), path.join(__testing.deadDir(), id));
+    expect(await queueHealth()).toMatchObject({ ok: false, pending: 0, dead: 1 });
+  });
+
+  it("brak katalogu kolejki (nic jeszcze nie przyszło) to stan zdrowy", async () => {
+    expect(await queueHealth()).toEqual({ ok: true, pending: 0, stuck: 0, dead: 0 });
   });
 });
