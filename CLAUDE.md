@@ -69,7 +69,7 @@ deploy/
 | `Cursor.svelte` | Custom cursor (dot + ring) with RAF easing |
 | `CircularMenu.svelte` | Rotating wheel navigation — SVG, particles, orbit rings. Label font size: 18px |
 | `Hero.svelte` | Full-screen hero with pulsing glow orb |
-| `OmniSection.svelte` | "O mnie" — Gosia's portrait photo + bio (4 paragraphs), portrait aligned to top, shown on mobile too |
+| `OmniSection.svelte` | "O mnie" — Gosia's portrait photo + bio (3 paragraphs), portrait aligned to top, shown on mobile too |
 | `GaleriaSection.svelte` | Two-row infinite carousel (JS RAF loop), per-row drag + inertia, lightbox with focus trap |
 | `KontaktSection.svelte` | 7-field contact form + social links + embedded MapaSection — posts to `/api/contact` |
 | `MapaSection.svelte` | Leaflet map + browser geolocation + OSRM routing |
