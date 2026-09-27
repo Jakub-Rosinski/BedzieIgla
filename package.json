@@ -22,10 +22,13 @@
     "test:all": "vitest run && playwright test"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/s3-request-presigner": "^3.1141.0",
     "dotenv": "^17.4.2",
     "leaflet": "^1.9.4",
     "leaflet-routing-machine": "^3.2.12",
-    "nodemailer": "^9.1.1"
+    "nodemailer": "^9.1.1",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

@@ -16,6 +16,8 @@ const PARAMS = {
   wielkosc: "małe",
   message: "Chciałabym umówić się na konsultację.",
   attachments: [],
+  /** @type {{ filename: string, url: string }[]} */
+  links: [],
 };
 
 beforeEach(() => {
@@ -97,6 +99,18 @@ describe("sendContactEmail — transport", () => {
     const sent = sendMailMock.mock.calls[0][0].attachments[0];
     expect(sent.filename).toBe("a.jpg");
     expect(Buffer.compare(sent.content, content)).toBe(0);
+  });
+
+  it("dopisuje do treści linki do oryginałów, a bez zdjęć nie dodaje sekcji", async () => {
+    await sendContactEmail({
+      ...PARAMS,
+      links: [{ filename: "ramie.jpg", url: "https://bedzieigla.pl/api/inspiracje/x/1-ramie.jpg?sig=s" }],
+    });
+    await sendContactEmail(PARAMS);
+
+    const [withLinks, without] = sendMailMock.mock.calls.map((c) => c[0].text);
+    expect(withLinks).toContain("1. ramie.jpg\n   https://bedzieigla.pl/api/inspiracje/x/1-ramie.jpg?sig=s");
+    expect(without).not.toContain("Inspiracje");
   });
 });
 
