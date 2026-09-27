@@ -23,28 +23,21 @@
                 <h3>Tworzę <em>z pasją</em> i intencją</h3>
                 <div class="section-divider"></div>
                 <p>
-                    Mam na imię Gosia i tatuaż to dla mnie coś więcej niż rzemiosło
-                    – to forma opowiadania historii na skórze.
+                    Będzie Igła! to studio tatuażu w Gliwicach, w którym tworzę autorskie
+                    i indywidualne projekty dopasowane do osoby, jej pomysłu i anatomii.
+                    Jestem absolwentką liceum plastycznego oraz Akademii Sztuk Pięknych
+                    w Łodzi, dzięki czemu mam szeroki warsztat artystyczny i pracuję
+                    w różnych stylach.
                 </p>
                 <p class="mt">
-                    Swoją drogę artystyczną zaczęłam w liceum plastycznym w Kielcach,
-                    gdzie ukończyłam kierunek technik malarskich i pozłotniczych,
-                    uzyskując najwyższą ocenę z dyplomu. Następnie rozwijałam się na
-                    Akademii Sztuk Pięknych w Łodzi, kończąc licencjat z projektowania
-                    ubioru. To właśnie tam nauczyłam się patrzeć na ciało jak na formę,
-                    którą można świadomie „ubierać" – dziś robię to za pomocą tatuażu.
+                    Wykonuję zarówno delikatne, subtelne tatuaże, jak i większe, bardziej
+                    rozbudowane projekty oraz covery. Każdy tatuaż traktuję indywidualnie
+                    – zależy mi nie tylko na estetyce projektu i wykonania, ale również
+                    na swobodnej, komfortowej atmosferze podczas całej sesji.
                 </p>
                 <p class="mt">
-                    Dzięki solidnemu wykształceniu artystycznemu i szerokiemu
-                    warsztatowi jestem bardzo uniwersalna – tworzę w różnych stylach,
-                    dopasowując projekt do osoby, a nie odwrotnie. Każdy tatuaż traktuję
-                    indywidualnie, bo za każdym stoi czyjaś historia.
-                </p>
-                <p class="mt">
-                    W moim studiu stawiam nie tylko na estetykę, ale też na atmosferę.
-                    Zależy mi, żebyś czuła się swobodnie i spokojnie – bez stresu, bez
-                    napięcia. Dużo rozmawiam, dbam o komfort i robię wszystko, żeby czas
-                    sesji minął szybko i w dobrej energii.
+                    Masz własny pomysł na tatuaż? Napisz – wspólnie stworzymy projekt
+                    dla Ciebie.
                 </p>
             </div>
         </div>
