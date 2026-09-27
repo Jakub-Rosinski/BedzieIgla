@@ -5,9 +5,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const enqueueMock = vi.fn();
 vi.mock("$lib/server/queue.js", () => ({
   enqueue: (/** @type {any} */ args) => enqueueMock(args),
+  QueueFullError: class QueueFullError extends Error {},
 }));
 
 import { POST } from "./+server.js";
+import { QueueFullError } from "$lib/server/queue.js";
 import { __testing as rateLimitTesting } from "$lib/server/rate-limit.js";
 
 const VALID_FIELDS = {
@@ -270,5 +272,17 @@ describe("POST /api/contact — awaria zapisu kolejki", () => {
 
     expect(res.status).toBe(500);
     expect(body.error).toBeTruthy();
+  });
+
+  it("zwraca 503, gdy kolejka odmawia przyjęcia (limit / mało miejsca)", async () => {
+    // Stan przejściowy, a nie utrata danych — klient ma dostać „spróbuj za chwilę”.
+    enqueueMock.mockRejectedValueOnce(new QueueFullError("pełna"));
+
+    const event = makeEvent({ ...VALID_FIELDS, firstInteractionAt: farEnoughFirstInteraction() });
+    const res = await POST(/** @type {any} */ (event));
+    const body = await res.json();
+
+    expect(res.status).toBe(503);
+    expect(body.error).toMatch(/spróbuj ponownie/i);
   });
 });

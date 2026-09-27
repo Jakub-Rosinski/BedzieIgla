@@ -56,6 +56,49 @@ const pendingDir = () => path.join(queueRoot(), "pending");
 const deadDir = () => path.join(queueRoot(), "dead");
 
 /**
+ * Limity chroniące dysk (#31). Zapełniony dysk łamie sam mechanizm trwałości:
+ * `enqueue()` dostaje ENOSPC i zgłoszenie przepada — lepiej odmówić wcześniej,
+ * uczciwym 503, póki system ma jeszcze miejsce. Obiekt (a nie stałe), żeby
+ * testy mogły je obniżyć.
+ */
+const limits = {
+  /** × maks. 18 MB na zgłoszenie ≈ 3,6 GB w najgorszym przypadku. */
+  maxPending: 200,
+  /** Zapas zostawiany systemowi, logom i buildowi. */
+  minFreeBytes: 1024 ** 3,
+};
+
+/** Po tylu dniach zgłoszenie z dead/ jest kasowane — na ręczne odzyskanie jest miesiąc. */
+const DEAD_TTL_MS = 30 * 24 * 60 * 60_000;
+
+/** Porzucony katalog `.staging-*` (proces zginął w trakcie zapisu) — sprzątany po godzinie. */
+const STAGING_TTL_MS = 60 * 60_000;
+
+/** Kolejka odmawia przyjęcia — endpoint zamienia to na 503. */
+export class QueueFullError extends Error {}
+
+/** @param {string} dir */
+const list = (dir) => fs.readdir(dir).catch(() => /** @type {string[]} */ ([]));
+
+/**
+ * Powód, dla którego kolejka nie może przyjąć zgłoszenia, albo `null`.
+ * @returns {Promise<string | null>}
+ */
+async function capacityProblem() {
+  const pending = (await list(pendingDir())).length;
+  if (pending >= limits.maxPending) {
+    return `pending/ ma ${pending} zgłoszeń (limit ${limits.maxPending})`;
+  }
+  await fs.mkdir(queueRoot(), { recursive: true });
+  const { bavail, bsize } = await fs.statfs(queueRoot());
+  const free = bavail * bsize;
+  if (free < limits.minFreeBytes) {
+    return `wolne miejsce na dysku ${Math.round(free / 1024 ** 2)} MB (próg ${Math.round(limits.minFreeBytes / 1024 ** 2)} MB)`;
+  }
+  return null;
+}
+
+/**
  * @typedef {{
  *   name: string, email: string, phone: string,
  *   miejsce: string, wielkosc: string, message: string
@@ -83,10 +126,19 @@ async function writeMeta(dir, job) {
  * Przyjmuje zgłoszenie do kolejki. Zwraca dopiero wtedy, gdy komplet danych
  * jest na dysku — od tego momentu zgłoszenie przetrwa restart procesu.
  *
+ * Odmawia (`QueueFullError`), gdy kolejka jest pełna albo kończy się dysk —
+ * zanim cokolwiek zapisze.
+ *
  * @param {ContactFields & { attachments: Attachment[] }} submission
  * @returns {Promise<string>} identyfikator zgłoszenia
  */
 export async function enqueue({ attachments = [], ...fields }) {
+  const problem = await capacityProblem();
+  if (problem) {
+    console.error(`[kolejka] ALERT: odrzucono zgłoszenie od ${fields.email} — ${problem}`);
+    throw new QueueFullError(problem);
+  }
+
   const id = `${Date.now()}-${crypto.randomUUID()}`;
   const staging = path.join(queueRoot(), `.staging-${id}`);
   await fs.mkdir(staging, { recursive: true });
@@ -212,15 +264,15 @@ const STUCK_AFTER_MS = 30 * 60_000;
  * `kontakt@` dziennie i dawała każdemu sposób na zablokowanie skrzynki przez
  * OVH. Awaria SMTP i tak widać tutaj: zgłoszenia utykają w `pending/`.
  *
+ * `full` — kolejka odrzuca nowe zgłoszenia (#31); to też awaria.
+ *
  * @param {number} [now]
- * @returns {Promise<{ ok: boolean, pending: number, stuck: number, dead: number }>}
+ * @returns {Promise<{ ok: boolean, pending: number, stuck: number, dead: number, full: boolean }>}
  */
 export async function queueHealth(now = Date.now()) {
-  /** @param {string} dir */
-  const list = (dir) => fs.readdir(dir).catch(() => /** @type {string[]} */ ([]));
-
   const pendingIds = await list(pendingDir());
   const dead = (await list(deadDir())).length;
+  const full = (await capacityProblem()) !== null;
 
   let stuck = 0;
   for (const id of pendingIds) {
@@ -228,7 +280,35 @@ export async function queueHealth(now = Date.now()) {
     if (job && now - job.createdAt > STUCK_AFTER_MS) stuck++;
   }
 
-  return { ok: stuck === 0 && dead === 0, pending: pendingIds.length, stuck, dead };
+  return { ok: stuck === 0 && dead === 0 && !full, pending: pendingIds.length, stuck, dead, full };
+}
+
+/**
+ * Sprząta to, co inaczej rosłoby bez końca (#31): zgłoszenia w dead/ starsze
+ * niż 30 dni (z logiem, żeby było wiadomo, co zniknęło) i porzucone katalogi
+ * `.staging-*`. Wiek liczony od mtime katalogu — przy przenosinach do dead/
+ * `writeMeta` go odświeża, więc to moment porzucenia, nie przyjęcia.
+ *
+ * @param {number} [now]
+ */
+export async function purgeExpired(now = Date.now()) {
+  for (const id of await list(deadDir())) {
+    const dir = path.join(deadDir(), id);
+    const { mtimeMs } = await fs.stat(dir);
+    if (now - mtimeMs < DEAD_TTL_MS) continue;
+    const job = await readJob(dir);
+    console.warn(
+      `[kolejka] Usuwam z dead/ zgłoszenie ${id} od ${job?.fields.email ?? "?"} — nieodzyskane przez 30 dni`
+    );
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+
+  for (const name of await list(queueRoot())) {
+    if (!name.startsWith(".staging-")) continue;
+    const dir = path.join(queueRoot(), name);
+    const { mtimeMs } = await fs.stat(dir);
+    if (now - mtimeMs >= STAGING_TTL_MS) await fs.rm(dir, { recursive: true, force: true });
+  }
 }
 
 /** @type {NodeJS.Timeout | null} */
@@ -240,6 +320,7 @@ async function tick() {
   if (running) return;
   running = true;
   try {
+    await purgeExpired();
     await processDue();
   } catch (err) {
     console.error("[kolejka] Nieoczekiwany błąd przebiegu:", err);
@@ -280,4 +361,5 @@ export const __testing = {
   pendingDir,
   deadDir,
   inFlight,
+  limits,
 };

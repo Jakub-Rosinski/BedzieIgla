@@ -4,7 +4,7 @@ import { json } from "@sveltejs/kit";
 import { validate, isBotSubmission } from "$lib/form-utils.js";
 import { checkRateLimit, recordAttempt, recordSend } from "$lib/server/rate-limit.js";
 import { sniffImageType, safeAttachmentName } from "$lib/server/image-utils.js";
-import { enqueue } from "$lib/server/queue.js";
+import { enqueue, QueueFullError } from "$lib/server/queue.js";
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB / plik
 const MAX_FILES = 6;
@@ -104,6 +104,14 @@ export async function POST({ request, getClientAddress }) {
   try {
     await enqueue({ name, email, phone, miejsce, wielkosc, message, attachments });
   } catch (err) {
+    // Kolejka sama odmówiła (limit / mało miejsca, #31) — stan przejściowy,
+    // klient zachowuje wypełniony formularz i może spróbować ponownie.
+    if (err instanceof QueueFullError) {
+      return json(
+        { error: "Formularz jest chwilowo przeciążony. Spróbuj ponownie za kilka minut." },
+        { status: 503 }
+      );
+    }
     // Tu dociera już tylko awaria zapisu na dysk (brak miejsca, brak uprawnień).
     // Nie możemy zagwarantować trwałości, więc nie wolno udawać sukcesu.
     console.error("Nie udało się zapisać zgłoszenia w kolejce:", err);
