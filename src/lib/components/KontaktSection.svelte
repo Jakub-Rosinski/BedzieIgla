@@ -38,68 +38,29 @@
         if (!firstInteractionAt) firstInteractionAt = Date.now();
     }
 
-    const MAX_FILE_SIZE_MB = 5;
+    // Muszą się zgadzać z limitami w src/routes/api/contact/+server.js
+    const MAX_FILE_SIZE_MB = 15;
     const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-
-    const MAX_IMG_PX = 2200;   // max dimension after resize — plenty for tattoo reference photos
-    const JPEG_QUALITY = 0.85; // JPEG compression quality
-    const SKIP_RESIZE_UNDER_BYTES = 1024 * 1024; // don't re-encode already-small files
+    const MAX_FILES = 10;
 
     /**
-     * Resizes an image file via canvas to MAX_IMG_PX/JPEG_QUALITY, returned as a File.
-     * Skips re-encoding files that are already small — no artificial cap to fight anymore,
-     * the server (/api/contact) sends the real file as a MIME attachment.
-     * @param {File} file
-     * @returns {Promise<File>}
-     */
-    function resizeForUpload(file) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            const objUrl = URL.createObjectURL(file);
-            img.onload = () => {
-                URL.revokeObjectURL(objUrl);
-                const longest = Math.max(img.width, img.height);
-                if (file.size <= SKIP_RESIZE_UNDER_BYTES && longest <= MAX_IMG_PX) {
-                    resolve(file);
-                    return;
-                }
-                const scale = Math.min(1, MAX_IMG_PX / longest);
-                const canvas = document.createElement("canvas");
-                canvas.width  = Math.round(img.width  * scale);
-                canvas.height = Math.round(img.height * scale);
-                /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"))
-                    .drawImage(img, 0, 0, canvas.width, canvas.height);
-                canvas.toBlob(
-                    (blob) => {
-                        if (!blob) {
-                            reject(new Error(`Nie udało się przetworzyć pliku "${file.name}".`));
-                            return;
-                        }
-                        resolve(new File([blob], file.name, { type: "image/jpeg" }));
-                    },
-                    "image/jpeg",
-                    JPEG_QUALITY
-                );
-            };
-            img.onerror = reject;
-            img.src = objUrl;
-        });
-    }
-
-    /**
-     * Validates and resizes the selected inspiration files for upload.
+     * Szybka walidacja przed wysyłką (serwer i tak sprawdza wszystko sam).
+     * Pliki idą w oryginale — serwer odkłada je do S3, do maila trafiają
+     * tylko miniatury i linki (#19), więc nie ma już powodu zmniejszać.
      * @param {FileList} fileList
-     * @returns {Promise<File[]>}
+     * @returns {File[]}
      */
-    async function prepareFiles(fileList) {
+    function prepareFiles(fileList) {
         const files = Array.from(fileList);
+        if (files.length > MAX_FILES)
+            throw new Error(`Maksymalnie ${MAX_FILES} plików.`);
         for (const file of files) {
             if (!file.type.startsWith("image/"))
                 throw new Error(`Plik "${file.name}" nie jest obrazem.`);
             if (file.size > MAX_FILE_SIZE_BYTES)
                 throw new Error(`Plik "${file.name}" przekracza ${MAX_FILE_SIZE_MB} MB.`);
         }
-        return Promise.all(files.map(resizeForUpload));
+        return files;
     }
 
     // ─── Wysyłka ──────────────────────────────────────────────────────────────
@@ -138,10 +99,10 @@
         status = "sending";
         errorMsg = "";
 
-        // Walidacja i lekkie skalowanie zdjęć (pełna jakość leci na serwer jako MIME attachment)
+        // Walidacja zdjęć (pełna jakość leci na serwer)
         let preparedFiles = [];
         try {
-            preparedFiles = inspFiles?.length ? await prepareFiles(inspFiles) : [];
+            preparedFiles = inspFiles?.length ? prepareFiles(inspFiles) : [];
         } catch (err) {
             status = "error";
             errorMsg = err instanceof Error ? err.message : "Błąd pliku.";
@@ -389,7 +350,7 @@
 
                     <div class="field">
                         <label for="f-inspiracje">
-                            Inspiracje <span class="optional">— zdjęcia, grafiki, rysunki (max {MAX_FILE_SIZE_MB} MB / plik)</span>
+                            Inspiracje <span class="optional">— zdjęcia, grafiki, rysunki (do {MAX_FILES} plików, max {MAX_FILE_SIZE_MB} MB / plik)</span>
                         </label>
                         <label class="file-drop" class:disabled={status === "sending"}>
                             <input

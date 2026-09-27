@@ -5,9 +5,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const enqueueMock = vi.fn();
 vi.mock("$lib/server/queue.js", () => ({
   enqueue: (/** @type {any} */ args) => enqueueMock(args),
+  QueueFullError: class QueueFullError extends Error {},
 }));
 
 import { POST } from "./+server.js";
+import { QueueFullError } from "$lib/server/queue.js";
 import { __testing as rateLimitTesting } from "$lib/server/rate-limit.js";
 
 const VALID_FIELDS = {
@@ -156,8 +158,8 @@ describe("POST /api/contact — antyspam", () => {
 });
 
 describe("POST /api/contact — załączniki", () => {
-  it("odrzuca plik przekraczający 5 MB", async () => {
-    const big = new File([new Uint8Array(6 * 1024 * 1024)], "big.jpg", { type: "image/jpeg" });
+  it("odrzuca plik przekraczający 15 MB", async () => {
+    const big = new File([new Uint8Array(16 * 1024 * 1024)], "big.jpg", { type: "image/jpeg" });
     const event = makeEvent(
       { ...VALID_FIELDS, firstInteractionAt: farEnoughFirstInteraction() },
       [big]
@@ -166,7 +168,37 @@ describe("POST /api/contact — załączniki", () => {
     const body = await res.json();
 
     expect(res.status).toBe(400);
-    expect(body.error).toMatch(/5 MB/);
+    expect(body.error).toMatch(/15 MB/);
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
+  /** @param {number} count @param {number} bytes */
+  const jpegs = (count, bytes) =>
+    Array.from({ length: count }, (_, i) => {
+      const data = new Uint8Array(bytes);
+      data.set([0xff, 0xd8, 0xff]); // sygnatura JPEG — serwer sprawdza zawartość
+      return new File([data], `foto-${i}.jpg`, { type: "image/jpeg" });
+    });
+
+  it("przyjmuje 10 zdjęć po 10 MB (kryterium #19)", async () => {
+    const event = makeEvent(
+      { ...VALID_FIELDS, firstInteractionAt: farEnoughFirstInteraction() },
+      jpegs(10, 10 * 1024 * 1024)
+    );
+    const res = await POST(/** @type {any} */ (event));
+
+    expect(res.status).toBe(200);
+    expect(enqueueMock.mock.calls[0][0].attachments).toHaveLength(10);
+  });
+
+  it("odrzuca 11. plik", async () => {
+    const event = makeEvent(
+      { ...VALID_FIELDS, firstInteractionAt: farEnoughFirstInteraction() },
+      jpegs(11, 1024)
+    );
+    const res = await POST(/** @type {any} */ (event));
+
+    expect(res.status).toBe(400);
     expect(enqueueMock).not.toHaveBeenCalled();
   });
 
@@ -270,5 +302,17 @@ describe("POST /api/contact — awaria zapisu kolejki", () => {
 
     expect(res.status).toBe(500);
     expect(body.error).toBeTruthy();
+  });
+
+  it("zwraca 503, gdy kolejka odmawia przyjęcia (limit / mało miejsca)", async () => {
+    // Stan przejściowy, a nie utrata danych — klient ma dostać „spróbuj za chwilę”.
+    enqueueMock.mockRejectedValueOnce(new QueueFullError("pełna"));
+
+    const event = makeEvent({ ...VALID_FIELDS, firstInteractionAt: farEnoughFirstInteraction() });
+    const res = await POST(/** @type {any} */ (event));
+    const body = await res.json();
+
+    expect(res.status).toBe(503);
+    expect(body.error).toMatch(/spróbuj ponownie/i);
   });
 });

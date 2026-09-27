@@ -9,7 +9,19 @@ vi.mock("./mailer.js", () => ({
   sendContactEmail: (/** @type {any} */ args) => sendContactEmailMock(args),
 }));
 
-import { enqueue, processDue, __testing } from "./queue.js";
+const THUMB = Buffer.from("miniatura");
+/** @type {{ key: string, content: Buffer, contentType: string }[]} */
+let uploads = [];
+const uploadOriginalMock = vi.fn();
+vi.mock("./inspiracje.js", () => ({
+  uploadOriginal: (/** @type {any[]} */ ...args) => uploadOriginalMock(...args),
+  thumbnail: async () => THUMB,
+  inspirationLink: (/** @type {string} */ key) => `link:${key}`,
+}));
+
+import { enqueue, processDue, queueHealth, purgeExpired, QueueFullError, __testing } from "./queue.js";
+
+const DEFAULT_LIMITS = { ...__testing.limits };
 
 /** @type {string} */
 let root;
@@ -52,11 +64,20 @@ beforeEach(async () => {
   vi.stubEnv("QUEUE_DIR", root);
   sendContactEmailMock.mockReset();
   sendContactEmailMock.mockResolvedValue(undefined);
+  uploads = [];
+  uploadOriginalMock.mockReset();
+  uploadOriginalMock.mockImplementation(
+    async (/** @type {string} */ key, /** @type {string} */ file, /** @type {string} */ contentType) => {
+      uploads.push({ key, content: await fs.readFile(file), contentType });
+    }
+  );
   __testing.inFlight.clear();
 });
 
 afterEach(async () => {
   vi.unstubAllEnvs();
+  Object.assign(__testing.limits, DEFAULT_LIMITS);
+  vi.restoreAllMocks();
   await fs.rm(root, { recursive: true, force: true });
 });
 
@@ -101,17 +122,42 @@ describe("kolejka — wysyłka", () => {
     expect(await fs.readdir(__testing.pendingDir())).toEqual([]);
   });
 
-  it("odtwarza załączniki przy wysyłce", async () => {
+  it("wgrywa oryginał do S3 bajt w bajt, a do maila daje miniaturę i link", async () => {
     const content = crypto.randomBytes(2048);
     await enqueue({
       ...VALID,
       attachments: [{ filename: "a.jpg", content, contentType: "image/jpeg" }],
     });
+    const { id } = await readOnlyJob(__testing.pendingDir());
     await processDue();
 
-    const sent = sendContactEmailMock.mock.calls[0][0].attachments[0];
-    expect(Buffer.compare(sent.content, content)).toBe(0);
-    expect(sent.contentType).toBe("image/jpeg");
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].key).toBe(`${id}/1-a.jpg`);
+    expect(Buffer.compare(uploads[0].content, content)).toBe(0);
+    expect(uploads[0].contentType).toBe("image/jpeg");
+
+    const mail = sendContactEmailMock.mock.calls[0][0];
+    expect(mail.attachments).toEqual([
+      { filename: "podglad-a.jpg", content: THUMB, contentType: "image/jpeg" },
+    ]);
+    expect(mail.links).toEqual([{ filename: "a.jpg", url: `link:${id}/1-a.jpg` }]);
+  });
+
+  it("awaria S3 nie gubi zgłoszenia, a ponowienie wgrywa pod ten sam klucz", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await enqueue({
+      ...VALID,
+      attachments: [{ filename: "a.jpg", content: crypto.randomBytes(64), contentType: "image/jpeg" }],
+    });
+    const { id } = await readOnlyJob(__testing.pendingDir());
+    uploadOriginalMock.mockRejectedValueOnce(new Error("S3 niedostępne"));
+
+    expect((await processDue()).failed).toBe(1);
+    expect(sendContactEmailMock).not.toHaveBeenCalled();
+
+    await makeDue(id);
+    expect((await processDue()).sent).toBe(1);
+    expect(uploadOriginalMock.mock.calls.map((c) => c[0])).toEqual([`${id}/1-a.jpg`, `${id}/1-a.jpg`]);
   });
 
   it("pomija zgłoszenie, którego czas ponowienia jeszcze nie nadszedł", async () => {
@@ -219,5 +265,74 @@ describe("kolejka — trwałość", () => {
     const stats = await processDue();
 
     expect(stats.sent).toBe(1); // poprawne zgłoszenie mimo to poszło
+  });
+});
+
+describe("kolejka — stan dla monitoringu", () => {
+  it("świeże zgłoszenie w pending/ to normalny stan, nie awaria", async () => {
+    await enqueue({ ...VALID, attachments: [] });
+
+    expect(await queueHealth()).toMatchObject({ ok: true, pending: 1, stuck: 0 });
+  });
+
+  it("zgłoszenie wiszące ponad 30 min albo cokolwiek w dead/ zgłasza awarię", async () => {
+    await enqueue({ ...VALID, attachments: [] });
+    const in31min = Date.now() + 31 * 60_000;
+    expect(await queueHealth(in31min)).toMatchObject({ ok: false, stuck: 1 });
+
+    const [id] = await fs.readdir(__testing.pendingDir());
+    await fs.mkdir(__testing.deadDir(), { recursive: true });
+    await fs.rename(path.join(__testing.pendingDir(), id), path.join(__testing.deadDir(), id));
+    expect(await queueHealth()).toMatchObject({ ok: false, pending: 0, dead: 1 });
+  });
+
+  it("brak katalogu kolejki (nic jeszcze nie przyszło) to stan zdrowy", async () => {
+    expect(await queueHealth()).toEqual({ ok: true, pending: 0, stuck: 0, dead: 0, full: false });
+  });
+});
+
+describe("kolejka — ochrona dysku (#31)", () => {
+  it("pełna pending/ odrzuca nowe zgłoszenie bez zapisu i zgłasza awarię", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    __testing.limits.maxPending = 1;
+    await enqueue({ ...VALID, attachments: [] });
+
+    await expect(enqueue({ ...VALID, attachments: [] })).rejects.toBeInstanceOf(QueueFullError);
+
+    expect(await fs.readdir(root)).toEqual(["pending"]); // żadnego .staging-*
+    expect(await fs.readdir(__testing.pendingDir())).toHaveLength(1);
+    expect(await queueHealth()).toMatchObject({ ok: false, full: true, pending: 1 });
+  });
+
+  it("za mało wolnego miejsca odrzuca zgłoszenie", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    __testing.limits.minFreeBytes = Number.MAX_SAFE_INTEGER;
+
+    await expect(enqueue({ ...VALID, attachments: [] })).rejects.toBeInstanceOf(QueueFullError);
+    expect(await queueHealth()).toMatchObject({ ok: false, full: true });
+  });
+
+  it("kasuje z dead/ dopiero po 30 dniach, a porzucony .staging-* po godzinie", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const day = 24 * 60 * 60_000;
+    const now = Date.now();
+    /** @param {string} dir @param {number} ageMs */
+    const makeAged = async (dir, ageMs) => {
+      await fs.mkdir(dir, { recursive: true });
+      const t = new Date(now - ageMs);
+      await fs.utimes(dir, t, t);
+    };
+
+    await makeAged(path.join(__testing.deadDir(), "stare"), 31 * day);
+    await makeAged(path.join(__testing.deadDir(), "swieze"), 29 * day);
+    await makeAged(path.join(root, ".staging-porzucony"), 2 * 60 * 60_000);
+    await makeAged(path.join(root, ".staging-w-toku"), 60_000);
+
+    await purgeExpired(now);
+
+    expect(await fs.readdir(__testing.deadDir())).toEqual(["swieze"]);
+    expect((await fs.readdir(root)).filter((n) => n.startsWith(".staging-"))).toEqual([
+      ".staging-w-toku",
+    ]);
   });
 });
