@@ -9,7 +9,9 @@ vi.mock("./mailer.js", () => ({
   sendContactEmail: (/** @type {any} */ args) => sendContactEmailMock(args),
 }));
 
-import { enqueue, processDue, queueHealth, __testing } from "./queue.js";
+import { enqueue, processDue, queueHealth, purgeExpired, QueueFullError, __testing } from "./queue.js";
+
+const DEFAULT_LIMITS = { ...__testing.limits };
 
 /** @type {string} */
 let root;
@@ -57,6 +59,8 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.unstubAllEnvs();
+  Object.assign(__testing.limits, DEFAULT_LIMITS);
+  vi.restoreAllMocks();
   await fs.rm(root, { recursive: true, force: true });
 });
 
@@ -241,6 +245,52 @@ describe("kolejka — stan dla monitoringu", () => {
   });
 
   it("brak katalogu kolejki (nic jeszcze nie przyszło) to stan zdrowy", async () => {
-    expect(await queueHealth()).toEqual({ ok: true, pending: 0, stuck: 0, dead: 0 });
+    expect(await queueHealth()).toEqual({ ok: true, pending: 0, stuck: 0, dead: 0, full: false });
+  });
+});
+
+describe("kolejka — ochrona dysku (#31)", () => {
+  it("pełna pending/ odrzuca nowe zgłoszenie bez zapisu i zgłasza awarię", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    __testing.limits.maxPending = 1;
+    await enqueue({ ...VALID, attachments: [] });
+
+    await expect(enqueue({ ...VALID, attachments: [] })).rejects.toBeInstanceOf(QueueFullError);
+
+    expect(await fs.readdir(root)).toEqual(["pending"]); // żadnego .staging-*
+    expect(await fs.readdir(__testing.pendingDir())).toHaveLength(1);
+    expect(await queueHealth()).toMatchObject({ ok: false, full: true, pending: 1 });
+  });
+
+  it("za mało wolnego miejsca odrzuca zgłoszenie", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    __testing.limits.minFreeBytes = Number.MAX_SAFE_INTEGER;
+
+    await expect(enqueue({ ...VALID, attachments: [] })).rejects.toBeInstanceOf(QueueFullError);
+    expect(await queueHealth()).toMatchObject({ ok: false, full: true });
+  });
+
+  it("kasuje z dead/ dopiero po 30 dniach, a porzucony .staging-* po godzinie", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const day = 24 * 60 * 60_000;
+    const now = Date.now();
+    /** @param {string} dir @param {number} ageMs */
+    const makeAged = async (dir, ageMs) => {
+      await fs.mkdir(dir, { recursive: true });
+      const t = new Date(now - ageMs);
+      await fs.utimes(dir, t, t);
+    };
+
+    await makeAged(path.join(__testing.deadDir(), "stare"), 31 * day);
+    await makeAged(path.join(__testing.deadDir(), "swieze"), 29 * day);
+    await makeAged(path.join(root, ".staging-porzucony"), 2 * 60 * 60_000);
+    await makeAged(path.join(root, ".staging-w-toku"), 60_000);
+
+    await purgeExpired(now);
+
+    expect(await fs.readdir(__testing.deadDir())).toEqual(["swieze"]);
+    expect((await fs.readdir(root)).filter((n) => n.startsWith(".staging-"))).toEqual([
+      ".staging-w-toku",
+    ]);
   });
 });
