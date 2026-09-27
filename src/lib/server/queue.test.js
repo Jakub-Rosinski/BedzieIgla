@@ -9,6 +9,16 @@ vi.mock("./mailer.js", () => ({
   sendContactEmail: (/** @type {any} */ args) => sendContactEmailMock(args),
 }));
 
+const THUMB = Buffer.from("miniatura");
+/** @type {{ key: string, content: Buffer, contentType: string }[]} */
+let uploads = [];
+const uploadOriginalMock = vi.fn();
+vi.mock("./inspiracje.js", () => ({
+  uploadOriginal: (/** @type {any[]} */ ...args) => uploadOriginalMock(...args),
+  thumbnail: async () => THUMB,
+  inspirationLink: (/** @type {string} */ key) => `link:${key}`,
+}));
+
 import { enqueue, processDue, queueHealth, purgeExpired, QueueFullError, __testing } from "./queue.js";
 
 const DEFAULT_LIMITS = { ...__testing.limits };
@@ -54,6 +64,13 @@ beforeEach(async () => {
   vi.stubEnv("QUEUE_DIR", root);
   sendContactEmailMock.mockReset();
   sendContactEmailMock.mockResolvedValue(undefined);
+  uploads = [];
+  uploadOriginalMock.mockReset();
+  uploadOriginalMock.mockImplementation(
+    async (/** @type {string} */ key, /** @type {string} */ file, /** @type {string} */ contentType) => {
+      uploads.push({ key, content: await fs.readFile(file), contentType });
+    }
+  );
   __testing.inFlight.clear();
 });
 
@@ -105,17 +122,42 @@ describe("kolejka — wysyłka", () => {
     expect(await fs.readdir(__testing.pendingDir())).toEqual([]);
   });
 
-  it("odtwarza załączniki przy wysyłce", async () => {
+  it("wgrywa oryginał do S3 bajt w bajt, a do maila daje miniaturę i link", async () => {
     const content = crypto.randomBytes(2048);
     await enqueue({
       ...VALID,
       attachments: [{ filename: "a.jpg", content, contentType: "image/jpeg" }],
     });
+    const { id } = await readOnlyJob(__testing.pendingDir());
     await processDue();
 
-    const sent = sendContactEmailMock.mock.calls[0][0].attachments[0];
-    expect(Buffer.compare(sent.content, content)).toBe(0);
-    expect(sent.contentType).toBe("image/jpeg");
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].key).toBe(`${id}/1-a.jpg`);
+    expect(Buffer.compare(uploads[0].content, content)).toBe(0);
+    expect(uploads[0].contentType).toBe("image/jpeg");
+
+    const mail = sendContactEmailMock.mock.calls[0][0];
+    expect(mail.attachments).toEqual([
+      { filename: "podglad-a.jpg", content: THUMB, contentType: "image/jpeg" },
+    ]);
+    expect(mail.links).toEqual([{ filename: "a.jpg", url: `link:${id}/1-a.jpg` }]);
+  });
+
+  it("awaria S3 nie gubi zgłoszenia, a ponowienie wgrywa pod ten sam klucz", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await enqueue({
+      ...VALID,
+      attachments: [{ filename: "a.jpg", content: crypto.randomBytes(64), contentType: "image/jpeg" }],
+    });
+    const { id } = await readOnlyJob(__testing.pendingDir());
+    uploadOriginalMock.mockRejectedValueOnce(new Error("S3 niedostępne"));
+
+    expect((await processDue()).failed).toBe(1);
+    expect(sendContactEmailMock).not.toHaveBeenCalled();
+
+    await makeDue(id);
+    expect((await processDue()).sent).toBe(1);
+    expect(uploadOriginalMock.mock.calls.map((c) => c[0])).toEqual([`${id}/1-a.jpg`, `${id}/1-a.jpg`]);
   });
 
   it("pomija zgłoszenie, którego czas ponowienia jeszcze nie nadszedł", async () => {

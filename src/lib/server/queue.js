@@ -27,6 +27,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { sendContactEmail } from "./mailer.js";
+import { uploadOriginal, thumbnail, inspirationLink } from "./inspiracje.js";
 
 /** Odstępy przed kolejnymi próbami. Długość tablicy = liczba ponowień. */
 const RETRY_DELAYS_MS = [
@@ -62,8 +63,8 @@ const deadDir = () => path.join(queueRoot(), "dead");
  * testy mogły je obniżyć.
  */
 const limits = {
-  /** × maks. 18 MB na zgłoszenie ≈ 3,6 GB w najgorszym przypadku. */
-  maxPending: 200,
+  /** × maks. ~120 MB na zgłoszenie (10 × 15 MB) ≈ 12 GB w najgorszym przypadku. */
+  maxPending: 100,
   /** Zapas zostawiany systemowi, logom i buildowi. */
   minFreeBytes: 1024 ** 3,
 };
@@ -208,15 +209,26 @@ export async function processDue() {
 
     inFlight.add(id);
     try {
-      const attachments = await Promise.all(
-        job.attachments.map(async (a) => ({
-          filename: a.filename,
-          contentType: a.contentType,
-          content: await fs.readFile(path.join(dir, a.file)),
-        }))
-      );
+      // Oryginały → prywatny S3, do maila tylko miniatury i linki (#19).
+      // Po kolei, nie równolegle: 10 × 15 MB naraz to zbędny szczyt pamięci.
+      // Klucz zależy tylko od id zgłoszenia, więc ponowienie nadpisuje obiekt.
+      /** @type {{ filename: string, content: Buffer, contentType: string }[]} */
+      const thumbnails = [];
+      /** @type {{ filename: string, url: string }[]} */
+      const links = [];
+      for (const [index, a] of job.attachments.entries()) {
+        const file = path.join(dir, a.file);
+        const key = `${job.id}/${index + 1}-${a.filename}`;
+        await uploadOriginal(key, file, a.contentType);
+        thumbnails.push({
+          filename: `podglad-${a.filename.replace(/\.\w+$/, "")}.jpg`,
+          content: await thumbnail(file),
+          contentType: "image/jpeg",
+        });
+        links.push({ filename: a.filename, url: inspirationLink(key) });
+      }
 
-      await sendContactEmail({ ...job.fields, attachments });
+      await sendContactEmail({ ...job.fields, attachments: thumbnails, links });
       await fs.rm(dir, { recursive: true, force: true });
       stats.sent++;
     } catch (err) {

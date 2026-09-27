@@ -6,9 +6,13 @@ import { checkRateLimit, recordAttempt, recordSend } from "$lib/server/rate-limi
 import { sniffImageType, safeAttachmentName } from "$lib/server/image-utils.js";
 import { enqueue, QueueFullError } from "$lib/server/queue.js";
 
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB / plik
-const MAX_FILES = 6;
-const MAX_TOTAL_BYTES = 18 * 1024 * 1024; // łącznie — zapas pod limit Gmaila (~25 MB po base64)
+// Oryginały idą do S3, nie do maila (#19) — limit Gmaila już nas nie dotyczy.
+// Suma musi się mieścić w BODY_SIZE_LIMIT (ecosystem.config.cjs) i
+// client_max_body_size (nginx.conf.template).
+const MAX_FILE_SIZE_MB = 15;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const MAX_FILES = 10;
+const MAX_TOTAL_BYTES = 120 * 1024 * 1024;
 
 /** @param {import('@sveltejs/kit').RequestEvent} event */
 export async function POST({ request, getClientAddress }) {
@@ -70,7 +74,7 @@ export async function POST({ request, getClientAddress }) {
   let totalBytes = 0;
   for (const file of files) {
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      return json({ error: `Plik "${file.name}" przekracza 5 MB.` }, { status: 400 });
+      return json({ error: `Plik "${file.name}" przekracza ${MAX_FILE_SIZE_MB} MB.` }, { status: 400 });
     }
     totalBytes += file.size;
   }
