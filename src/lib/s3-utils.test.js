@@ -190,4 +190,22 @@ describe("parseS3Xml — realny scenariusz galerii", () => {
 
     expect(alts).toEqual(["image kwiatow", "img waz na ramieniu"]);
   });
+
+  it("miniatura: adres /api/galeria wersjonowany ETagiem, bez ETagu — oryginał", () => {
+    const xml =
+      `<?xml version="1.0"?><ListBucketResult>` +
+      `<Contents><Key>gallery/IMG_1.JPG</Key><ETag>"e1"</ETag></Contents>` +
+      `<Contents><Key>gallery/kwiat lotosu.jpg</Key><ETag>"e2-3"</ETag></Contents>` +
+      `<Contents><Key>gallery/sub/x.jpg</Key><ETag>"e3"</ETag></Contents>` +
+      `<Contents><Key>gallery/z.jpg</Key></Contents>` +
+      `</ListBucketResult>`;
+    const thumbs = parseS3Xml(xml, PREFIX, PUBLIC_URL).map((p) => p.thumb);
+
+    expect(thumbs).toEqual([
+      "/api/galeria/IMG_1.JPG?v=e1",
+      "/api/galeria/kwiat%20lotosu.jpg?v=e2-3",
+      `${PUBLIC_URL}/gallery/sub/x.jpg`,
+      `${PUBLIC_URL}/gallery/z.jpg`,
+    ]);
+  });
 });

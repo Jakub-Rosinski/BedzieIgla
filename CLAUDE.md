@@ -40,6 +40,7 @@ src/
       rate-limit.js     # In-memory per-IP sliding window: attempts + sends
       image-utils.js    # Magic-byte image sniffing + attachment name sanitising
       queue.js          # Durable on-disk submission queue + retry worker + disk limits
+      galeria.js        # Gallery thumbnails: ETag-checked S3 fetch → sharp WebP → disk cache
     hooks.server.js     # Starts the queue worker at server boot (guarded by `building`)
     index.js            # Barrel re-exports
   routes/
@@ -51,10 +52,13 @@ src/
       +server.js        # POST — validates, rate-limits, sends contact email
     api/health/
       +server.js        # GET — queue state for uptime monitoring (200 ok / 503)
+    api/galeria/[name]/
+      +server.js        # GET — gallery thumbnail /api/galeria/<file>?v=<ETag>, immutable cache
     api/inspiracje/[...key]/
       +server.js        # GET — verifies link HMAC → 302 to 5-min presigned S3 URL (410 once expired)
 static/
   logo.png              # Site logo / OG image
+  logo-menu.webp        # 400px logo for the circular menu (LCP element) — logo.png stays the OG image
   favicon.png
   gosia-photo.jpg       # Portrait for the "O mnie" section (800x902, optimised)
   robots.txt            # Allows all crawlers, points to sitemap
@@ -90,7 +94,7 @@ pnpm start        # Run the built server: node -r dotenv/config build/index.js
 pnpm preview      # Preview production build locally
 pnpm check        # svelte-kit sync + svelte-check (type checking)
 pnpm check:watch  # Type checking in watch mode
-pnpm test         # Unit tests (Vitest) — 143 tests across 9 files
+pnpm test         # Unit tests (Vitest) — 151 tests across 10 files
 pnpm test:e2e     # End-to-end tests (Playwright)
 ```
 
@@ -140,6 +144,8 @@ LINK_SECRET             # HMAC key for photo links in mail (openssl rand -base64
 - **Gallery — S3 mode**: Calls `VITE_S3_LIST_URL?list-type=2&prefix=...`, parses XML via `parseS3Xml` in `s3-utils.js`, builds URLs from `VITE_S3_PUBLIC_URL`. Falls back to picsum.photos when `VITE_S3_LIST_URL` is empty — this is exactly what happened in production for months (the secret was unset/wrong), silently masked because the fallback still renders a full-looking gallery. `VITE_S3_LIST_URL`/`VITE_S3_PUBLIC_URL` MUST be virtual-hosted-style (`https://bedzie-igla.s3.waw.perf.cloud.ovh.net`) — this OVH endpoint rejects path-style (`https://s3.waw.perf.cloud.ovh.net/bedzie-igla`) with `400 "Not S3 request"`. OVH doesn't implement bucket policy (`GetBucketPolicy` → `NotImplemented`); public read/list is bucket/object ACL `public-read` (`AllUsers:READ`) — every uploaded object needs that ACL individually or it 403s even with a public bucket. `.HEIC` uploads are silently invisible: `IMAGE_EXTS` in `s3-utils.js` only matches `jpg`/`jpeg`/`png`/`webp`/`gif`/`avif`.
 - **SEO**: `app.html` has complete meta tags (description, keywords, OG, Twitter Card). `+page.svelte` has canonical link and JSON-LD `TattooParlor` structured data (address, GPS, phone, socials, Gosia's education). `static/sitemap.xml` and `static/robots.txt` present. Canonical host is the apex `https://bedzieigla.pl` — Nginx 301s `www` (and all of http) straight there, so the site is never served under two hostnames (#53). Local-SEO work is tracked in epic #46 / release 2.1.0.
 - **Gallery alt text**: `altFromFilename()` in `s3-utils.js` turns a descriptive filename (`kwiat-lotosu.jpg` → "kwiat lotosu") into the alt; camera/app auto-names (`IMG_5270`, UUIDs, `image000000-1`, `Grafika_bez_nazwy`) get a generic "Tatuaż wykonany w studiu Będzie Igła! w Gliwicach — praca N" instead. To give a photo a real description, rename the S3 object descriptively.
+- **Gallery thumbnails (#58)**: carousel cards load `/api/galeria/<file>?v=<ETag>` (built by `parseS3Xml`), the lightbox still loads the S3 original. `galleryThumb()` in `src/lib/server/galeria.js` caches one WebP (≥600×700, EXIF-rotated, metadata stripped) per name+ETag in `GALLERY_CACHE_DIR` (default `cache/galeria`, relative to the PM2 `cwd` — MUST stay outside `build/`, which deploy `rsync --delete`s). On a cache miss it first does a cheap `HEAD` and compares the ETag, so random `?v=` values 404 without downloading or resizing anything; the name must be a flat image filename. Replacing a photo in S3 changes its ETag → new URL, so `Cache-Control: immutable` is safe. Took mobile page weight from 9.2 MB to ~1.15 MB. sharp's prebuilt binary cannot decode HEIC, so HEIC photos stay invisible either way — convert them to JPEG before upload.
+- **Hero wheel entry animation**: pure CSS (`@keyframes wheel-enter`, scale+rotate only, no opacity fade). It used to be `opacity: 0` until hydration set a `.mounted` class; the logo in the wheel is the LCP element and Chrome ignores invisible elements for LCP, so Lighthouse mobile LCP was 3.5 s instead of 1.5 s. Don't reintroduce a fade-in from 0 on the wheel.
 - **Analytics**: GA4 injected in `+layout.svelte` via `{@html}` in `<svelte:head>`. Only loads when `VITE_GA4_ID` is set — safe to leave empty in dev.
 - **Security headers**: Set via Nginx (`deploy/nginx.conf.template`) — CSP (covers GA4, OSM, OSRM, OVH S3, Google Fonts; `blob:` was dropped from `img-src` along with the client-side photo resize (#19); no longer needs api.emailjs.com since the form posts same-origin), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS, Permissions-Policy, HTTPS redirect, static asset caching, gzip. They live in an `/etc/nginx/snippets/bedzieigla-security.conf` snippet that every `location` block `include`s — **Nginx does not inherit `add_header` into a location that declares its own**. `img-src`/`connect-src` use the exact literal S3 hostname (`https://bedzie-igla.s3.waw.perf.cloud.ovh.net`), **not** a wildcard — CSP's grammar permits only a single leading `*.` label; a source like `https://*.s3.*.perf.cloud.ovh.net` (two wildcards) is entirely invalid and gets silently dropped by the browser (visible only as a console warning, easy to miss), which is exactly what made the real S3 gallery invisible in production for months — `fetch()` to the bucket was CSP-blocked, silently caught, and `GaleriaSection.svelte` fell back to picsum.photos test photos that still looked like a real gallery.
 - **Nginx bootstrap order**: `nginx.conf.template` contains a TLS block, which Nginx refuses to load before certificates exist. Bring the site up on port 80 first, run `certbot --nginx`, then install the full template. See the note at the top of that file.
