@@ -26,8 +26,9 @@ server {
         root /var/www/html;
     }
 
+    # Straight to the canonical apex host — one hop, not http→https→apex (#53).
     location / {
-        return 301 https://$host$request_uri;
+        return 301 https://bedzieigla.pl$request_uri;
     }
 }
 
@@ -38,6 +39,14 @@ server {
     server_name bedzieigla.pl www.bedzieigla.pl;
 
     # certbot injects ssl_certificate / ssl_certificate_key here on first run.
+
+    # www must not serve a duplicate of the site — 301 to the canonical apex (#53).
+    # Kept in this block (not a separate www server) so it reuses the single
+    # certbot-managed certificate, which covers both names. `return` inside
+    # a server-level `if` is the one nginx-endorsed safe use of `if`.
+    if ($host = www.bedzieigla.pl) {
+        return 301 https://bedzieigla.pl$request_uri;
+    }
 
     server_tokens off;
 

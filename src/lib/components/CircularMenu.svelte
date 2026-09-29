@@ -180,7 +180,6 @@
                 on:click={(e) => navigate(e, item.href)}
                 on:mouseenter={() => (hovered[item.href] = true)}
                 on:mouseleave={() => (hovered[item.href] = false)}
-                role="menuitem"
                 aria-label={item.label}
             >
                 <!-- Szeroka niewidoczna strefa klikalna -->
