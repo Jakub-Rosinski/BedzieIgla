@@ -10,24 +10,26 @@
     const S3_PREFIX     = import.meta.env.VITE_S3_PREFIX     ?? "gallery/";
 
     // ─── Tryb testowy — picsum.photos ────────────────────────────────────────
-    const TEST_PHOTOS = Array.from({ length: 18 }, (_, i) => ({
-        url: `https://picsum.photos/seed/tattoo${i + 1}/600/800`,
-        alt: `tatuaż testowy ${i + 1}`,
-    }));
+    const TEST_PHOTOS = Array.from({ length: 18 }, (_, i) => {
+        const url = `https://picsum.photos/seed/tattoo${i + 1}/600/800`;
+        return { url, thumb: url, alt: `tatuaż testowy ${i + 1}` };
+    });
 
-    /** @type {Array<{url: string, alt: string}>} */
+    /** @typedef {{url: string, thumb: string, alt: string}} Photo */
+
+    /** @type {Photo[]} */
     let photos = [];
     let loading = true;
 
     // ─── Lightbox ────────────────────────────────────────────────────────────
-    /** @type {{url: string, alt: string} | null} */
+    /** @type {Photo | null} */
     let selectedPhoto = null;
     /** @type {HTMLElement | null} */
     let lightboxCloseBtn = null;
     /** @type {HTMLElement | null} */
     let lightboxTrigger = null;
 
-    /** @param {{url: string, alt: string}} photo @param {number} dist @param {HTMLElement} trigger */
+    /** @param {Photo} photo @param {number} dist @param {HTMLElement} trigger */
     function openLightbox(photo, dist, trigger) {
         if (dist > 5) return;
         lightboxTrigger = trigger;
@@ -292,7 +294,7 @@
                                 aria-label="Powiększ: {photo.alt}"
                             >
                                 <img
-                                    src={photo.url}
+                                    src={photo.thumb}
                                     alt={photo.alt}
                                     width="600"
                                     height="800"
@@ -327,7 +329,7 @@
                                 aria-label="Powiększ: {photo.alt}"
                             >
                                 <img
-                                    src={photo.url}
+                                    src={photo.thumb}
                                     alt={photo.alt}
                                     width="600"
                                     height="800"

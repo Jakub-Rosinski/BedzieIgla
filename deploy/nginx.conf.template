@@ -84,6 +84,7 @@ server {
     # Other static files shipped in build/client (images, robots, sitemap).
     location = /favicon.png    { include snippets/bedzieigla-security.conf; expires 1M; }
     location = /logo.png       { include snippets/bedzieigla-security.conf; expires 1M; }
+    location = /logo-menu.webp { include snippets/bedzieigla-security.conf; expires 1M; }
     location = /gosia-photo.jpg{ include snippets/bedzieigla-security.conf; expires 1M; }
     location = /robots.txt     { include snippets/bedzieigla-security.conf; }
     location = /sitemap.xml    { include snippets/bedzieigla-security.conf; }
