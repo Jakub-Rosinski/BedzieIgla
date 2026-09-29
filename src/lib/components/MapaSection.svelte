@@ -94,6 +94,7 @@
 
             L.marker([STUDIO_LAT, STUDIO_LNG], {
                 icon: studioIcon,
+                title: STUDIO_NAME, // Leaflet daje markerowi role="button" — bez tego nie ma nazwy dla czytników ekranu
             })
                 .addTo(map)
                 .bindPopup(
@@ -160,7 +161,7 @@
                     iconAnchor: [16, 44],
                     popupAnchor: [0, -46],
                 });
-                userMarker = L.marker([lat, lng], { icon: uIcon })
+                userMarker = L.marker([lat, lng], { icon: uIcon, title: "Twoja lokalizacja" })
                     .addTo(map)
                     .bindPopup(
                         '<div class="popup-inner"><strong>Twoja lokalizacja</strong></div>',

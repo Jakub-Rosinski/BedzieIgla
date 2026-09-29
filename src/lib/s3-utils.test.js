@@ -64,14 +64,14 @@ describe("parseS3Xml — poprawne dane", () => {
 
   it("pomija nieobsługiwane formaty (pdf, mp4, txt)", () => {
     const keys = [
-      "gallery/photo.jpg",
+      "gallery/rozyczka.jpg",
       "gallery/dokument.pdf",
       "gallery/wideo.mp4",
       "gallery/notes.txt",
     ];
     const result = parseS3Xml(buildXml(keys), PREFIX, PUBLIC_URL);
     expect(result).toHaveLength(1);
-    expect(result[0].alt).toBe("photo");
+    expect(result[0].alt).toBe("rozyczka");
   });
 
   it("pomija sam klucz prefix (folder marker)", () => {
@@ -155,10 +155,39 @@ describe("parseS3Xml — realny scenariusz galerii", () => {
   });
 
   it("działa poprawnie gdy prefix jest na początku kluczy", () => {
-    const xml = buildXml(["gallery/img1.jpg", "gallery/img2.png"]);
+    const xml = buildXml(["gallery/lotos1.jpg", "gallery/lotos2.png"]);
     const result = parseS3Xml(xml, "gallery/", PUBLIC_URL);
 
-    expect(result[0].alt).toBe("img1");
-    expect(result[1].alt).toBe("img2");
+    expect(result[0].alt).toBe("lotos1");
+    expect(result[1].alt).toBe("lotos2");
+  });
+
+  it("automatyczne nazwy z telefonu dostają opisowy alt z numerem pracy", () => {
+    const keys = [
+      "gallery/0ff578fc-18d7-4450-8c7c-315515b8631d.JPG",
+      "gallery/Grafika_bez_nazwy.JPEG",
+      "gallery/IMG_5270.JPG",
+      "gallery/image000000-1.JPG",
+      "gallery/kwiat-lotosu.jpg",
+    ];
+    const alts = parseS3Xml(buildXml(keys), PREFIX, PUBLIC_URL).map((p) => p.alt);
+
+    expect(alts).toEqual([
+      "Tatuaż wykonany w studiu Będzie Igła! w Gliwicach — praca 1",
+      "Tatuaż wykonany w studiu Będzie Igła! w Gliwicach — praca 2",
+      "Tatuaż wykonany w studiu Będzie Igła! w Gliwicach — praca 3",
+      "Tatuaż wykonany w studiu Będzie Igła! w Gliwicach — praca 4",
+      "kwiat lotosu",
+    ]);
+  });
+
+  it("nazwa opisowa zaczynająca się jak automatyczna zostaje altem", () => {
+    const alts = parseS3Xml(
+      buildXml(["gallery/image-kwiatow.jpg", "gallery/img-waz-na-ramieniu.jpg"]),
+      PREFIX,
+      PUBLIC_URL,
+    ).map((p) => p.alt);
+
+    expect(alts).toEqual(["image kwiatow", "img waz na ramieniu"]);
   });
 });
