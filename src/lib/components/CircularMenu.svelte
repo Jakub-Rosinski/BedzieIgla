@@ -1,9 +1,6 @@
 <script>
-    import { onMount } from "svelte";
-
     let imploding = false;
     let glowing = false;
-    let mounted = false;
 
     // Zakładki równo co 120°, zaczynając od północy (-90°)
     const items = [
@@ -48,16 +45,9 @@
             }, 650);
         }, 560);
     }
-
-    onMount(() => {
-        // Opóźnienie żeby entry animation zadziałała po renderze
-        requestAnimationFrame(() => {
-            mounted = true;
-        });
-    });
 </script>
 
-<div class="wheel-wrapper" class:imploding class:glowing class:mounted>
+<div class="wheel-wrapper" class:imploding class:glowing>
     <!-- ── Dekoracyjne pierścienie tła (CSS animated) ─────── -->
     <div class="orbit-rings" aria-hidden="true">
         <div class="orbit-ring r1"></div>
@@ -180,7 +170,6 @@
                 on:click={(e) => navigate(e, item.href)}
                 on:mouseenter={() => (hovered[item.href] = true)}
                 on:mouseleave={() => (hovered[item.href] = false)}
-                role="menuitem"
                 aria-label={item.label}
             >
                 <!-- Szeroka niewidoczna strefa klikalna -->
@@ -209,7 +198,7 @@
         <a href="/" aria-label="Strona główna" class="logo-link">
             <circle cx="230" cy="230" r="98" class="logo-bg" />
             <image
-                href="/logo.png"
+                href="/logo-menu.webp"
                 x="132"
                 y="132"
                 width="196"
@@ -426,20 +415,20 @@
         width: 460px;
         height: 460px;
         overflow: visible;
-        /* implosja */
-        transition:
-            transform 0.56s cubic-bezier(0.55, 0, 1, 0.45),
-            opacity 0.56s ease;
-        /* entry — startuje jako invisible, .mounted je ujawnia */
-        opacity: 0;
-        transform: scale(0.7) rotate(-15deg);
-    }
-    .mounted .wheel-svg {
-        opacity: 1;
-        transform: scale(1) rotate(0deg);
+        /* powrót po implozji — sprężyste odbicie */
         transition:
             transform 1.1s cubic-bezier(0.34, 1.56, 0.64, 1),
             opacity 0.8s ease;
+        /* entry — czysty CSS, startuje z pierwszym malowaniem strony, bez
+           wygaszenia (opacity 0 → 1). Wcześniej koło było niewidoczne do hydracji
+           JS (klasa .mounted z onMount), a Chrome nie liczy niewidocznych elementów
+           do LCP — logo w kole to element LCP, więc Lighthouse mobile mierzył
+           LCP 3,5 s zamiast 1,5 s (#58). `backwards`, nie `both`: po animacji rządzą
+           zwykłe style, więc implozja (!important) i powrót działają jak dotąd. */
+        animation: wheel-enter 1.1s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    }
+    @keyframes wheel-enter {
+        from { transform: scale(0.7) rotate(-15deg); }
     }
     .imploding .wheel-svg {
         transform: scale(0) !important;

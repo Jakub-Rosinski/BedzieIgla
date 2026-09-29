@@ -1,5 +1,10 @@
 /* ─── CSS Variables ─────────────────────────────────── */
 :root {
+    /* Wysokość sekcji pełnoekranowych. Limit, bo Googlebot renderuje stronę w oknie
+       telefonu, a potem rozciąga okno do wysokości całej strony — gołe 100vh rosło
+       wtedy do ~6600 px, a zrzut w Search Console był pustym tłem (#53).
+       1400 px nie zmienia niczego na realnych ekranach (1440p przy 100% ≈ 1300 px). */
+    --section-h: min(100vh, 1400px);
     --bg: #2e3033;
     --bg2: #1a1c1f;
     --bg3: #767f94;
