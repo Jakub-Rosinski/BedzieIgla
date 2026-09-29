@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+  # Ręczne uruchomienie (Actions → Deploy → Run workflow, albo `gh workflow run deploy.yml`).
+  # Merge wydania 2.1.0 (d99e254) nie wywołał zdarzenia push i deploy nie ruszył —
+  # bez tej opcji jedynym wyjściem był kolejny commit na chronionym main.
+  workflow_dispatch:
 
 concurrency:
   group: deploy-production
