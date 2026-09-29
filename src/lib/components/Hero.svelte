@@ -16,7 +16,7 @@
 <style>
     #hero {
         position: relative;
-        height: 100vh;
+        height: var(--section-h);
         display: flex;
         align-items: center;
         justify-content: center;
