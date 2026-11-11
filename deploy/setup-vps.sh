@@ -73,6 +73,16 @@ npm install -g pm2
 echo "==> 8. Nginx + certbot + automatic security updates + fail2ban"
 apt-get install -y nginx certbot python3-certbot-nginx unattended-upgrades fail2ban
 systemctl enable --now fail2ban
+# Renewal rewrites the cert files but nginx keeps serving the old cert from memory
+# until reloaded — with the webroot authenticator nothing reloads it, so the site
+# would expire despite a successful renewal. Deploy hooks run only after a real
+# renewal (not on --dry-run).
+install -d /etc/letsencrypt/renewal-hooks/deploy
+cat > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh <<'EOF'
+#!/bin/sh
+nginx -t && systemctl reload nginx
+EOF
+chmod 755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
 
 echo "==> 9. Nginx security-headers snippet (see nginx.conf.template)"
 install -d /etc/nginx/snippets
