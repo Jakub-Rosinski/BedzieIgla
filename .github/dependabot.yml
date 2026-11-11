@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Zależności aplikacji (pnpm-lock.yaml). Minor/patch w jednym PR na tydzień,
+  # major osobno — te wymagają przeczytania changeloga (#68).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      minor-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
