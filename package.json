@@ -39,7 +39,6 @@
     "@testing-library/svelte": "^5.4.2",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^22.20.5",
-    "@types/nodemailer": "^8.0.2",
     "@vitest/coverage-v8": "^4.1.4",
     "jsdom": "^31.0.0",
     "svelte": "^5.57.3",
