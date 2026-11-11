@@ -1,9 +1,13 @@
 version: 2
+# Wszystkie PR-y aktualizacji idą do gałęzi zbiorczej `dependencies`, nie do main:
+# każdy merge do main to deploy na VPS. Zbiorczo: dependencies → release-x.y.z → main.
+# Security updates Dependabota ignorują target-branch i nadal celują w main.
 updates:
   # Zależności aplikacji (pnpm-lock.yaml). Minor/patch w jednym PR na tydzień,
   # major osobno — te wymagają przeczytania changeloga (#68).
   - package-ecosystem: npm
     directory: /
+    target-branch: dependencies
     schedule:
       interval: weekly
       day: monday
@@ -14,6 +18,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: dependencies
     schedule:
       interval: monthly
     groups:
