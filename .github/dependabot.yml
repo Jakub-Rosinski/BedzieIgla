@@ -20,11 +20,6 @@ updates:
     ignore:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
-      # dotenv 18 usunął preload (`-r dotenv/config`), którym startuje produkcja
-      # (package.json "start", ecosystem.config.cjs) — bez migracji na --env-file
-      # serwer w ogóle nie wstaje.
-      - dependency-name: "dotenv"
-        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
