@@ -71,7 +71,7 @@ jobs:
   # ─── Testy E2E (Playwright) ────────────────────────────────────────────────
   e2e:
     name: E2E tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [check, unit]
     steps:
       - uses: actions/checkout@v4
