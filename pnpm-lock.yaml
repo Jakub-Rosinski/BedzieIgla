@@ -15,8 +15,8 @@ importers:
         specifier: ^3.1164.0
         version: 3.1164.0
       dotenv:
-        specifier: ^17.4.2
-        version: 17.4.2
+        specifier: ^18.0.9
+        version: 18.0.9
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -994,9 +994,10 @@ packages:
   dom-accessibility-api@0.6.3:
     resolution: {integrity: sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w==}
 
-  dotenv@17.4.2:
-    resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
+  dotenv@18.0.9:
+    resolution: {integrity: sha512-3fVOW4cB02R066PUSwn8O4TJyz9NckQl7F81blIbaq9jKBm2tSmOKky7ZHIXzGvkVPXCSn6jkpziBPZdGFs8Tw==}
     engines: {node: '>=12'}
+    hasBin: true
 
   entities@9.0.0:
     resolution: {integrity: sha512-oJFNDJg3kTPwAD1cNn2+WmUq4wFoo09npc3Ydf1D7ED4smRiWrsKnaLxykrTWgyGEcusc87P5dxlAleol9kpkg==}
@@ -2317,7 +2318,7 @@ snapshots:
 
   dom-accessibility-api@0.6.3: {}
 
-  dotenv@17.4.2: {}
+  dotenv@18.0.9: {}
 
   entities@9.0.0: {}
 
